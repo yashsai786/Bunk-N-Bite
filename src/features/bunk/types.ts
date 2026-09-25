@@ -66,6 +66,7 @@ export interface FoodItem {
   price: number;
   category: "Breakfast" | "Snacks" | "Meals" | "Drinks" | "Desserts";
   image: string;
+  emoji?: string | undefined;
   available: boolean;
   prepTime: string;
   description: string;
