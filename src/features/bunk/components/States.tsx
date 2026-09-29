@@ -113,15 +113,23 @@ export function TableSkeleton({ rows = 4 }: { rows?: number }) {
 
 export function CardGridSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="space-y-3 rounded-2xl border border-border/70 bg-card p-4 shadow-xs"
+          className="flex flex-col justify-between rounded-xl border border-border bg-card p-3.5 shadow-xs space-y-3"
         >
-          <Skeleton className="aspect-4/3 w-full rounded-xl" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
+          <div className="flex items-start gap-3">
+            <Skeleton className="size-10 rounded-xl shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between border-t border-border/60 pt-2.5">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-7 w-14 rounded-lg" />
+          </div>
         </div>
       ))}
     </div>
