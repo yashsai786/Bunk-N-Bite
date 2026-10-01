@@ -105,7 +105,7 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     setRoleState(newRole);
     if (newRole === "owner") setActiveTab("Overview");
     else if (newRole === "university") setActiveTab("Overview");
-    else if (newRole === "canteen") setActiveTab("Live Orders");
+    else if (newRole === "canteen") setActiveTab("Overview");
     else if (newRole === "student") setActiveTab("Home");
     else if (newRole === "visitor") setActiveTab("Menu");
   };

@@ -30,10 +30,10 @@ export function CapsuleNavigation({
             type="button"
             onClick={() => onSelect(item)}
             className={cn(
-              "relative shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold tracking-normal transition-all duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring sm:text-sm",
+              "relative shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold tracking-normal transition-all duration-150 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring sm:text-xs md:text-sm",
               isActive
-                ? "bg-foreground text-background shadow-xs font-bold"
-                : "text-muted-foreground hover:bg-muted/80 hover:text-foreground active:scale-95"
+                ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             )}
             aria-current={isActive ? "page" : undefined}
           >

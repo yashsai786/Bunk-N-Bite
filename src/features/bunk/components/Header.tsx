@@ -57,7 +57,7 @@ export function Header() {
         <div className="flex items-center justify-between gap-2 md:gap-4">
           {/* Logo */}
           <div className="flex shrink-0 items-center gap-2.5">
-            <div className="grid size-9 place-items-center rounded-xl bg-foreground text-background shadow-xs transition-transform hover:scale-105">
+            <div className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-xs transition-transform hover:scale-105">
               <UtensilsCrossed className="size-4.5" />
             </div>
             <div className="hidden sm:block">
