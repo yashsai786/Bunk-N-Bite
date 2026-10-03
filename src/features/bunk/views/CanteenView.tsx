@@ -1,17 +1,22 @@
 import React, { useState } from "react";
 import {
+  AlertCircle,
+  ArrowRight,
   Check,
   CheckCircle2,
   Clock,
   Coffee,
+  Filter,
   IndianRupee,
   Layers,
   PackageCheck,
   Plus,
+  Receipt,
   Search,
   ShoppingBag,
   Store,
   Timer,
+  TrendingUp,
   Utensils,
   X,
 } from "lucide-react";
@@ -33,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FoodEmojiBadge, getCategoryEmoji, getFoodEmoji } from "../components/FoodEmoji";
 import { MetricCard, MetricGrid } from "../components/MetricCard";
 import { EmptyState } from "../components/States";
 import { StatusBadge } from "../components/StatusBadge";
@@ -54,9 +60,15 @@ export function CanteenView() {
     cancelOrder,
   } = useBunk();
 
+  // Orders filter & search
   const [orderFilter, setOrderFilter] = useState<string>("All");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderCustomerType, setOrderCustomerType] = useState<string>("All");
+
+  // Menu filter & search
   const [menuSearch, setMenuSearch] = useState("");
   const [menuCategory, setMenuCategory] = useState<string>("All");
+  const [menuAvailability, setMenuAvailability] = useState<string>("All");
 
   // Add / Edit Item Dialog state
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
@@ -64,6 +76,7 @@ export function CanteenView() {
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState("");
   const [itemCategory, setItemCategory] = useState<FoodItem["category"]>("Breakfast");
+  const [itemEmoji, setItemEmoji] = useState("");
   const [itemPrep, setItemPrep] = useState("");
   const [itemDesc, setItemDesc] = useState("");
   const [itemAvailable, setItemAvailable] = useState(true);
@@ -80,6 +93,8 @@ export function CanteenView() {
     (o) => o.status === "Placed" || o.status === "Preparing"
   ).length;
 
+  const readyCount = canteenOrders.filter((o) => o.status === "Ready").length;
+
   const completedCount = canteenOrders.filter(
     (o) => o.status === "Completed"
   ).length;
@@ -88,18 +103,40 @@ export function CanteenView() {
     (f) => f.canteenId === selectedCanteenId || true
   );
 
+  // Filtered orders for the Orders screen
   const filteredOrders = canteenOrders.filter((o) => {
-    if (orderFilter === "All") return true;
-    return o.status === orderFilter;
+    // Map "New" filter to "Placed"
+    const matchStatus =
+      orderFilter === "All" ||
+      (orderFilter === "New" && o.status === "Placed") ||
+      o.status === orderFilter;
+
+    const matchType =
+      orderCustomerType === "All" || o.customerRole === orderCustomerType;
+
+    const matchSearch =
+      orderSearch.trim() === "" ||
+      o.id.toLowerCase().includes(orderSearch.toLowerCase()) ||
+      o.tokenNumber.toLowerCase().includes(orderSearch.toLowerCase()) ||
+      o.customer.toLowerCase().includes(orderSearch.toLowerCase()) ||
+      o.items.some((it) => it.name.toLowerCase().includes(orderSearch.toLowerCase()));
+
+    return matchStatus && matchType && matchSearch;
   });
 
+  // Filtered foods for the Menu catalog
   const filteredFoods = canteenFoods.filter((f) => {
     const matchesCategory =
       menuCategory === "All" || f.category === menuCategory;
     const matchesSearch = f.name
       .toLowerCase()
       .includes(menuSearch.toLowerCase());
-    return matchesCategory && matchesSearch;
+    const matchesAvailability =
+      menuAvailability === "All" ||
+      (menuAvailability === "available" && f.available) ||
+      (menuAvailability === "unavailable" && !f.available);
+
+    return matchesCategory && matchesSearch && matchesAvailability;
   });
 
   const openAddItemModal = () => {
@@ -107,6 +144,7 @@ export function CanteenView() {
     setItemName("");
     setItemPrice("");
     setItemCategory("Breakfast");
+    setItemEmoji("🥞");
     setItemPrep("10 min");
     setItemDesc("");
     setItemAvailable(true);
@@ -119,6 +157,7 @@ export function CanteenView() {
     setItemName(item.name);
     setItemPrice(String(item.price));
     setItemCategory(item.category);
+    setItemEmoji(item.emoji || getFoodEmoji(item.name, item.category));
     setItemPrep(item.prepTime);
     setItemDesc(item.description);
     setItemAvailable(item.available);
@@ -142,6 +181,7 @@ export function CanteenView() {
         name: itemName.trim(),
         price: numPrice,
         category: itemCategory,
+        emoji: itemEmoji.trim() || undefined,
         prepTime: itemPrep || "10 min",
         description: itemDesc.trim(),
         available: itemAvailable,
@@ -152,10 +192,11 @@ export function CanteenView() {
         name: itemName.trim(),
         price: numPrice,
         category: itemCategory,
-        image: foods[0]?.image || "",
+        emoji: itemEmoji.trim() || getCategoryEmoji(itemCategory),
+        image: "",
         available: itemAvailable,
         prepTime: itemPrep || "10 min",
-        description: itemDesc.trim() || "Delicious freshly prepared meal.",
+        description: itemDesc.trim() || "Freshly prepared dining item.",
         isVeg: true,
       });
     }
@@ -166,283 +207,363 @@ export function CanteenView() {
   const getNextAction = (status: OrderStatus) => {
     switch (status) {
       case "Placed":
-        return { label: "Start Preparing", next: "Preparing", variant: "default" as const };
+        return { label: "Start Preparing", next: "Preparing" };
       case "Preparing":
-        return { label: "Mark Ready", next: "Ready", variant: "default" as const };
+        return { label: "Mark Ready", next: "Ready" };
       case "Ready":
-        return { label: "Complete Order", next: "Completed", variant: "default" as const };
+        return { label: "Complete Order", next: "Completed" };
       default:
         return null;
     }
   };
 
+  // Support both "Orders" and "Live Orders" tab names
+  const isOrdersTab = activeTab === "Orders" || activeTab === "Live Orders";
+
   return (
-    <div className="space-y-6">
-      {/* 1. OVERVIEW TAB */}
+    <div className="space-y-5">
+      {/* 1. OVERVIEW TAB — POS Operations Dashboard */}
       {activeTab === "Overview" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-5">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
                   {activeCanteen.name}
                 </h1>
                 <StatusBadge status={activeCanteen.status} />
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Kitchen display & live order processing system.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Petpooja-style operational POS & Kitchen Management Terminal.
               </p>
             </div>
 
             <Button
-              onClick={() => setActiveTab("Live Orders")}
-              className="rounded-full text-xs font-bold gap-1.5"
+              onClick={() => setActiveTab("Orders")}
+              className="rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-1.5 shadow-xs h-9 px-3.5"
             >
-              <Utensils className="size-4" />
-              Kitchen Live Queue ({pendingCount})
+              <Utensils className="size-3.5" />
+              Live Orders ({pendingCount + readyCount})
             </Button>
           </div>
 
-          <MetricGrid>
+          {/* Compact KPI Cards */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
-              label="Today's Orders"
+              label="Orders Today"
               value={String(canteenOrders.length + 138)}
               icon={ShoppingBag}
-              delta="+14%"
+              delta="+14.2%"
+              subtext="Total order volume"
             />
             <MetricCard
-              label="Today's Revenue"
+              label="Today's Sales"
               value="₹24,850"
               icon={IndianRupee}
               delta="+9.1%"
+              subtext="Net gross turnover"
             />
             <MetricCard
-              label="Active Queue"
+              label="Pending Orders"
               value={String(pendingCount)}
               icon={Clock}
-              delta="In kitchen"
+              delta={`${pendingCount} active`}
+              subtext="Currently preparing"
             />
             <MetricCard
-              label="Completed Today"
+              label="Completed Orders"
               value={String(completedCount + 124)}
               icon={PackageCheck}
               delta="99.2% fulfillment"
+              subtext="Dispatched & handed off"
             />
-          </MetricGrid>
+          </div>
 
-          {/* High Priority Live Orders Section */}
-          <div className="rounded-3xl border border-border/70 bg-card p-5 sm:p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-bold text-foreground sm:text-lg">
-                  Priority Kitchen Queue
+          {/* Compact Live Order Queue */}
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-3 border-b border-border/60 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Timer className="size-4 text-primary" />
+                <h2 className="text-sm font-bold tracking-tight text-foreground sm:text-base">
+                  Live Kitchen Queue
                 </h2>
-                <p className="text-xs text-muted-foreground">
-                  Orders requiring preparation or ready for customer handoff.
-                </p>
+                <span className="rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-bold text-accent-foreground">
+                  {canteenOrders.filter((o) => o.status !== "Completed" && o.status !== "Cancelled").length} active
+                </span>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setActiveTab("Live Orders")}
-                className="text-xs font-semibold"
+                onClick={() => setActiveTab("Orders")}
+                className="text-xs font-semibold text-primary hover:text-primary/90 h-8"
               >
-                View all ({canteenOrders.length})
+                Full Orders Screen <ArrowRight className="ml-1 size-3.5" />
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {canteenOrders.slice(0, 6).map((order) => {
-                const action = getNextAction(order.status);
-                return (
-                  <div
-                    key={order.id}
-                    className="flex flex-col justify-between rounded-2xl border border-border/70 bg-card p-4 shadow-xs transition-all hover:shadow-card"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
-                        <div>
-                          <span className="font-black text-foreground text-base">
-                            {order.id}
-                          </span>
-                          <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">
-                            {order.tokenNumber}
-                          </span>
-                        </div>
-                        <StatusBadge status={order.status} />
-                      </div>
-
-                      {/* Items breakdown */}
-                      <div className="mt-3 space-y-1 text-xs sm:text-sm">
-                        {order.items.map((it, idx) => (
-                          <div key={idx} className="flex justify-between font-medium">
-                            <span>
-                              <b className="text-primary mr-1">{it.quantity}×</b>
-                              {it.name}
+            {/* Compact order queue items */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {canteenOrders
+                .filter((o) => o.status !== "Completed" && o.status !== "Cancelled")
+                .map((order) => {
+                  const action = getNextAction(order.status);
+                  return (
+                    <div
+                      key={order.id}
+                      className="flex flex-col justify-between rounded-lg border border-border/80 bg-background/50 p-3 shadow-2xs hover:border-primary/40 transition-colors"
+                    >
+                      <div>
+                        {/* Order header row */}
+                        <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-foreground text-sm">
+                              {order.id}
                             </span>
-                            <span className="text-muted-foreground">
-                              ₹{it.price * it.quantity}
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">
+                              {order.tokenNumber}
                             </span>
                           </div>
-                        ))}
+                          <StatusBadge status={order.status} />
+                        </div>
+
+                        {/* Customer & time meta */}
+                        <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                          <span>{order.customer} ({order.customerRole})</span>
+                          <span>{order.placedAt}</span>
+                        </div>
+
+                        {/* Items breakdown with emoji markers */}
+                        <div className="mt-2.5 space-y-1 rounded-md bg-card p-2 border border-border/60 text-xs">
+                          {order.items.map((it, idx) => (
+                            <div key={idx} className="flex items-center justify-between font-medium">
+                              <span className="flex items-center gap-1 truncate">
+                                <span className="font-bold text-primary mr-0.5">{it.quantity}×</span>
+                                <span>{getFoodEmoji(it.name)}</span>
+                                <span className="truncate">{it.name}</span>
+                              </span>
+                              <span className="text-muted-foreground font-semibold ml-2">
+                                ₹{it.price * it.quantity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between text-xs pt-1">
+                          <span className="text-[11px] text-muted-foreground font-medium">
+                            {order.paymentMethod} • Paid
+                          </span>
+                          <span className="font-extrabold text-foreground">
+                            ₹{order.total}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-2 text-xs text-muted-foreground">
-                        <span>{order.customer}</span>
-                        <span className="font-extrabold text-foreground">
-                          ₹{order.total}
-                        </span>
-                      </div>
-                    </div>
+                      {/* POS Action Controls */}
+                      <div className="mt-3 flex items-center gap-1.5 border-t border-border/50 pt-2">
+                        {action && (
+                          <Button
+                            size="sm"
+                            onClick={() => advanceOrderStatus(order.id)}
+                            className="flex-1 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 shadow-xs"
+                          >
+                            <Check className="mr-1 size-3.5" />
+                            {action.label}
+                          </Button>
+                        )}
 
-                    {/* Quick action button */}
-                    <div className="mt-4 flex items-center gap-2 border-t border-border/50 pt-3">
-                      {action ? (
                         <Button
-                          size="sm"
-                          onClick={() => advanceOrderStatus(order.id)}
-                          className="flex-1 rounded-full text-xs font-bold"
-                        >
-                          <Check className="mr-1 size-3.5" />
-                          {action.label}
-                        </Button>
-                      ) : (
-                        <span className="text-xs font-semibold text-muted-foreground flex-1 text-center py-1">
-                          {order.status === "Completed" ? "Fulfilled" : "Cancelled"}
-                        </span>
-                      )}
-
-                      {order.status !== "Completed" && order.status !== "Cancelled" && (
-                        <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => cancelOrder(order.id)}
-                          className="h-8 rounded-full text-xs font-semibold text-destructive hover:bg-destructive/10"
+                          className="h-8 rounded-md text-xs font-semibold text-destructive hover:bg-destructive/10 border-border"
                         >
                           Cancel
                         </Button>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+
+              {canteenOrders.filter((o) => o.status !== "Completed" && o.status !== "Cancelled").length === 0 && (
+                <div className="col-span-full py-8 text-center text-xs text-muted-foreground">
+                  <CheckCircle2 className="size-8 mx-auto text-success mb-2 opacity-80" />
+                  <p className="font-bold text-foreground">All kitchen tickets cleared!</p>
+                  <p className="text-[11px] mt-0.5">New orders from students and visitors will appear here automatically.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. LIVE ORDERS TAB */}
-      {activeTab === "Live Orders" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* 2. ORDERS TAB — Compact Operational Order Management Screen */}
+      {isOrdersTab && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Kitchen Live Orders
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Orders Management
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Click once to advance order through Placed → Preparing → Ready → Completed.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Scan, advance, and process customer orders in real time.
               </p>
             </div>
 
-            {/* Filter capsules */}
-            <div className="flex gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-xs">
-              {["All", "Placed", "Preparing", "Ready", "Completed"].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setOrderFilter(status)}
-                  className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
-                    orderFilter === status
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+            {/* Quick status counters */}
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="rounded-md bg-muted px-2 py-1 text-muted-foreground">
+                Total: <b className="text-foreground">{canteenOrders.length}</b>
+              </span>
+              <span className="rounded-md bg-primary/10 text-primary px-2 py-1">
+                Active: <b>{pendingCount + readyCount}</b>
+              </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredOrders.length === 0 ? (
-              <div className="col-span-full">
-                <EmptyState title={`No orders in '${orderFilter}' state`} />
+          {/* Controls: Capsule status filters + Search + Type selector */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Top capsule filters: [ All ] [ New ] [ Preparing ] [ Ready ] [ Completed ] */}
+            <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 shadow-2xs [scrollbar-width:none]">
+              {["All", "New", "Preparing", "Ready", "Completed"].map((status) => {
+                const isActive = orderFilter === status;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setOrderFilter(status)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors shrink-0 ${
+                      isActive
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 sm:w-56">
+                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  placeholder="Search order #, token, customer..."
+                  className="h-8 rounded-lg pl-8 text-xs bg-card"
+                />
               </div>
+
+              <Select
+                value={orderCustomerType}
+                onValueChange={setOrderCustomerType}
+              >
+                <SelectTrigger className="h-8 w-28 rounded-lg text-xs bg-card">
+                  <SelectValue placeholder="Customer" />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg">
+                  <SelectItem value="All" className="text-xs">All Types</SelectItem>
+                  <SelectItem value="Student" className="text-xs">Student</SelectItem>
+                  <SelectItem value="Visitor" className="text-xs">Visitor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Operational Orders List (Compact POS Rows / Cards) */}
+          <div className="space-y-2">
+            {filteredOrders.length === 0 ? (
+              <EmptyState
+                title={`No orders found`}
+                description="Try switching the filter tab or resetting your search query."
+              />
             ) : (
               filteredOrders.map((order) => {
                 const action = getNextAction(order.status);
                 return (
                   <div
                     key={order.id}
-                    className="flex flex-col justify-between rounded-3xl border border-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-card"
+                    className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 shadow-2xs hover:border-primary/40 transition-colors"
                   >
-                    <div>
-                      <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                        <div>
-                          <span className="text-lg font-black text-foreground">
+                    {/* Left: ID, token, time, customer */}
+                    <div className="flex items-start sm:items-center gap-3 min-w-[200px]">
+                      <div className="grid size-9 place-items-center rounded-lg bg-muted/80 text-foreground font-mono text-xs font-bold shrink-0">
+                        {order.tokenNumber}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-foreground">
                             {order.id}
                           </span>
-                          <span className="ml-2 rounded-md bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
-                            {order.tokenNumber}
+                          <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground">
+                            {order.customerRole}
                           </span>
                         </div>
-                        <StatusBadge status={order.status} />
-                      </div>
-
-                      <div className="mt-3 text-xs text-muted-foreground flex justify-between">
-                        <span>Customer: <b className="text-foreground">{order.customer}</b></span>
-                        <span>{order.placedAt}</span>
-                      </div>
-
-                      {/* Food Items List */}
-                      <div className="mt-4 space-y-1.5 rounded-2xl bg-muted/20 p-3 text-xs sm:text-sm">
-                        {order.items.map((it, idx) => (
-                          <div key={idx} className="flex justify-between font-medium">
-                            <span>
-                              <span className="font-black text-primary mr-1.5">{it.quantity}×</span>
-                              {it.name}
-                            </span>
-                            <span className="text-muted-foreground font-semibold">
-                              ₹{it.price * it.quantity}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground font-medium">
-                          {order.paymentMethod} (Paid)
-                        </span>
-                        <span className="text-base font-black text-foreground">
-                          Total: ₹{order.total}
-                        </span>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {order.placedAt} • <b className="text-foreground">{order.customer}</b>
+                        </p>
                       </div>
                     </div>
 
-                    <div className="mt-5 flex items-center gap-2 border-t border-border/50 pt-3">
-                      {action ? (
-                        <Button
-                          onClick={() => advanceOrderStatus(order.id)}
-                          className="flex-1 rounded-full text-xs font-bold"
-                        >
-                          <Check className="mr-1 size-3.5" />
-                          {action.label}
-                        </Button>
-                      ) : (
-                        <span className="text-xs font-semibold text-muted-foreground flex-1 text-center py-1">
-                          {order.status}
-                        </span>
-                      )}
+                    {/* Middle: Items summary with emojis */}
+                    <div className="flex-1 min-w-0 py-1 md:py-0 border-y md:border-y-0 border-border/40">
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        {order.items.map((it, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 rounded bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground"
+                          >
+                            <span className="font-bold text-primary">{it.quantity}×</span>
+                            <span>{getFoodEmoji(it.name)}</span>
+                            <span>{it.name}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
 
-                      {order.status !== "Completed" && order.status !== "Cancelled" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => cancelOrder(order.id)}
-                          className="h-8 rounded-full text-xs font-bold text-destructive hover:bg-destructive/10"
-                        >
-                          Cancel
-                        </Button>
-                      )}
+                    {/* Right: Bill, Status & Action Button */}
+                    <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+                      <div className="text-left md:text-right">
+                        <div className="text-sm font-extrabold text-foreground">
+                          ₹{order.total}
+                        </div>
+                        <span className="text-[10px] font-semibold text-muted-foreground">
+                          {order.paymentMethod} (Paid)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={order.status} />
+
+                        {action ? (
+                          <Button
+                            size="sm"
+                            onClick={() => advanceOrderStatus(order.id)}
+                            className="h-8 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold px-3 shadow-xs"
+                          >
+                            <Check className="mr-1 size-3.5" />
+                            {action.label}
+                          </Button>
+                        ) : (
+                          <span className="text-xs font-semibold text-muted-foreground px-2">
+                            {order.status === "Completed" ? "Completed" : "Cancelled"}
+                          </span>
+                        )}
+
+                        {order.status !== "Completed" && order.status !== "Cancelled" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => cancelOrder(order.id)}
+                            className="h-8 rounded-lg text-xs font-semibold text-destructive hover:bg-destructive/10 px-2"
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -452,157 +573,209 @@ export function CanteenView() {
         </div>
       )}
 
-      {/* 3. MENU TAB */}
+      {/* 3. MENU MANAGEMENT — POS-STYLE PRODUCT CATALOG */}
       {activeTab === "Menu" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Menu Management
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Menu Catalog
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Toggle dish availability in real-time or add new offerings.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Compact product catalog with real-time availability controls.
               </p>
             </div>
 
             <Button
               onClick={openAddItemModal}
-              className="rounded-full text-xs font-bold gap-1.5 shadow-xs"
+              className="rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-1.5 shadow-xs h-9 px-3.5"
             >
-              <Plus className="size-4" />
+              <Plus className="size-3.5" />
               Add Item
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Category Capsules */}
-            <div className="flex gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-xs">
-              {["All", "Breakfast", "Snacks", "Meals", "Drinks"].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setMenuCategory(cat)}
-                  className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
-                    menuCategory === cat
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+          {/* Top Catalog Filters */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-60">
+                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
+                  placeholder="Search items..."
+                  className="h-8 rounded-lg pl-8 text-xs bg-card"
+                />
+              </div>
+
+              {/* Category selector */}
+              <Select value={menuCategory} onValueChange={setMenuCategory}>
+                <SelectTrigger className="h-8 w-32 rounded-lg text-xs bg-card">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg">
+                  <SelectItem value="All" className="text-xs">All Categories</SelectItem>
+                  <SelectItem value="Breakfast" className="text-xs">🥞 Breakfast</SelectItem>
+                  <SelectItem value="Snacks" className="text-xs">🥪 Snacks</SelectItem>
+                  <SelectItem value="Meals" className="text-xs">🍛 Meals</SelectItem>
+                  <SelectItem value="Drinks" className="text-xs">🥤 Drinks</SelectItem>
+                  <SelectItem value="Desserts" className="text-xs">🍰 Desserts</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Availability selector */}
+              <Select value={menuAvailability} onValueChange={setMenuAvailability}>
+                <SelectTrigger className="h-8 w-32 rounded-lg text-xs bg-card">
+                  <SelectValue placeholder="Availability" />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg">
+                  <SelectItem value="All" className="text-xs">All Availability</SelectItem>
+                  <SelectItem value="available" className="text-xs">Available Only</SelectItem>
+                  <SelectItem value="unavailable" className="text-xs">Unavailable Only</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={menuSearch}
-                onChange={(e) => setMenuSearch(e.target.value)}
-                placeholder="Search food item..."
-                className="rounded-full pl-10 text-xs shadow-xs"
-              />
-            </div>
+            <span className="text-xs text-muted-foreground font-medium">
+              Showing <b>{filteredFoods.length}</b> dishes
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredFoods.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xs transition-all hover:shadow-card"
-              >
-                <div>
-                  <div className="relative aspect-4/3 w-full bg-muted">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="size-full object-cover"
-                    />
-                    <div className="absolute top-2.5 left-2.5">
-                      <StatusBadge
-                        status={item.available ? "Available" : "Unavailable"}
-                      />
-                    </div>
-                  </div>
+          {/* Compact POS Menu Table */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Item</th>
+                    <th className="py-2.5 px-3">Category</th>
+                    <th className="py-2.5 px-3">Prep Time</th>
+                    <th className="py-2.5 px-3 text-right">Price</th>
+                    <th className="py-2.5 px-3 text-center">Availability</th>
+                    <th className="py-2.5 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filteredFoods.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      {/* Item with small emoji badge */}
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <FoodEmojiBadge
+                            name={item.name}
+                            category={item.category}
+                            emoji={item.emoji}
+                            size="sm"
+                          />
+                          <span className="font-bold text-foreground text-xs sm:text-sm">
+                            {item.name}
+                          </span>
+                        </div>
+                      </td>
 
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-foreground text-sm sm:text-base">
-                        {item.name}
-                      </h3>
-                      <span className="font-black text-foreground text-base">
+                      <td className="py-2.5 px-3 font-medium text-muted-foreground">
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-foreground">
+                          {item.category}
+                        </span>
+                      </td>
+
+                      <td className="py-2.5 px-3 text-muted-foreground text-[11px]">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="size-3 text-muted-foreground" />
+                          {item.prepTime}
+                        </span>
+                      </td>
+
+                      <td className="py-2.5 px-3 text-right font-black text-foreground sm:text-sm">
                         ₹{item.price}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                      {item.description}
-                    </p>
-                    <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="size-3" />
-                      {item.prepTime}
-                    </div>
-                  </div>
-                </div>
+                      </td>
 
-                <div className="flex items-center justify-between border-t border-border/50 p-4 pt-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <Switch
-                      checked={item.available}
-                      onCheckedChange={() => toggleFoodAvailability(item.id)}
-                    />
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {item.available ? "Live" : "Off"}
-                    </span>
-                  </label>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="inline-flex items-center gap-2">
+                          <Switch
+                            checked={item.available}
+                            onCheckedChange={() => toggleFoodAvailability(item.id)}
+                          />
+                          <span
+                            className={`text-[11px] font-bold ${
+                              item.available ? "text-success" : "text-muted-foreground"
+                            }`}
+                          >
+                            {item.available ? "Available" : "Unavailable"}
+                          </span>
+                        </div>
+                      </td>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditItemModal(item)}
-                    className="h-7 rounded-full text-xs font-semibold"
-                  >
-                    Edit
-                  </Button>
-                </div>
-              </div>
-            ))}
+                      <td className="py-2.5 px-3 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditItemModal(item)}
+                          className="h-7 rounded-md text-xs font-semibold px-2.5 hover:border-primary/50"
+                        >
+                          Edit
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filteredFoods.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                        No food items match the selected filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
       {/* 4. CATEGORIES TAB */}
       {activeTab === "Categories" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Menu Categories
-              </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Classify items for quick student discovery.
-              </p>
-            </div>
+        <div className="space-y-4">
+          <div className="border-b border-border/70 pb-3">
+            <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+              Menu Categories
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Campus food classification and quick filtering groups.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { name: "Breakfast", items: 6, desc: "Dosaball, Idli, Poha, Sandwiches" },
-              { name: "Snacks", items: 8, desc: "Wraps, Rolls, Samosa, Grilled Sandwiches" },
-              { name: "Meals", items: 5, desc: "Thalis, Biryanis, Rice Bowls, Chole Bhature" },
-              { name: "Drinks", items: 7, desc: "Cold Coffee, Mango Lassi, Fresh Juices" },
+              { name: "Breakfast", emoji: "🥞", count: canteenFoods.filter((f) => f.category === "Breakfast").length, desc: "Dosaball, Idli, Poha, Fresh Morning Items" },
+              { name: "Snacks", emoji: "🥪", count: canteenFoods.filter((f) => f.category === "Snacks").length, desc: "Wraps, Grilled Sandwiches, Samosas, Fries" },
+              { name: "Meals", emoji: "🍛", count: canteenFoods.filter((f) => f.category === "Meals").length, desc: "Thalis, Dum Biryanis, Rice Bowls, Pizzas" },
+              { name: "Drinks", emoji: "🥤", count: canteenFoods.filter((f) => f.category === "Drinks").length, desc: "Artisanal Cold Coffee, Mango Lassi, Masala Chai" },
+              { name: "Desserts", emoji: "🍰", count: canteenFoods.filter((f) => f.category === "Desserts").length, desc: "Walnut Brownies, Cakes, Sweet Bites" },
             ].map((cat) => (
               <div
                 key={cat.name}
-                className="rounded-3xl border border-border/70 bg-card p-5 shadow-xs"
+                className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-xs"
               >
-                <div className="grid size-10 place-items-center rounded-2xl bg-muted text-primary">
-                  <Layers className="size-5" />
+                <div className="grid size-11 place-items-center rounded-xl bg-muted/80 text-2xl shrink-0 border border-border/70 select-none">
+                  {cat.emoji}
                 </div>
-                <h3 className="mt-4 font-bold text-foreground text-base">
-                  {cat.name}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">{cat.desc}</p>
-                <div className="mt-4 pt-3 border-t border-border/50 flex justify-between text-xs">
-                  <span className="font-semibold text-foreground">{cat.items} dishes</span>
-                  <span className="text-muted-foreground">Active</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-foreground text-sm sm:text-base">
+                      {cat.name}
+                    </h3>
+                    <span className="rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-bold">
+                      {cat.count} items
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 leading-normal">
+                    {cat.desc}
+                  </p>
                 </div>
               </div>
             ))}
@@ -612,58 +785,72 @@ export function CanteenView() {
 
       {/* 5. ANALYTICS TAB */}
       {activeTab === "Analytics" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Canteen Sales Performance
-              </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Daily turnover and item demand trends for {activeCanteen.name}.
-              </p>
-            </div>
+        <div className="space-y-4">
+          <div className="border-b border-border/70 pb-3">
+            <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+              Canteen Performance & Sales
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Turnover velocity, average ticket size, and item demand for {activeCanteen.name}.
+            </p>
           </div>
 
-          <MetricGrid>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
               label="Today's GMV"
               value="₹24,850"
               icon={IndianRupee}
               delta="+14.2%"
+              subtext="Vs. yesterday"
             />
             <MetricCard
               label="Orders Handled"
               value="142"
               icon={ShoppingBag}
-              delta="+9%"
+              delta="+9.0%"
+              subtext="Total tickets"
             />
             <MetricCard
               label="Average Ticket"
               value="₹175"
-              icon={Store}
+              icon={Receipt}
               delta="+3.8%"
+              subtext="Per order value"
             />
             <MetricCard
               label="Top Dish"
               value="Masala Dosa"
               icon={Coffee}
               delta="48 orders"
+              subtext="🥞 Highest demand"
             />
-          </MetricGrid>
+          </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="rounded-3xl border border-border/70 bg-card p-6 lg:col-span-2 shadow-xs">
-              <h3 className="font-bold text-foreground">Revenue Trend (Hourly)</h3>
-              <p className="text-xs text-muted-foreground mt-1">Today's sales volume trajectory.</p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Hourly Revenue Graph */}
+            <div className="rounded-xl border border-border bg-card p-5 lg:col-span-2 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="font-bold text-foreground text-sm sm:text-base">
+                    Hourly Sales Distribution
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Peak counter rush from 11:00 AM to 02:00 PM.
+                  </p>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                  Today
+                </span>
+              </div>
 
-              <div className="mt-6 flex h-56 items-end gap-3 border-b border-border/60 pb-2">
+              <div className="mt-6 flex h-48 items-end gap-2 border-b border-border/60 pb-2">
                 {[15, 30, 75, 95, 60, 50, 85, 90, 40, 25].map((val, i) => (
                   <div key={i} className="flex flex-1 flex-col items-center gap-1.5 group">
                     <div
-                      className="w-full rounded-t-lg bg-primary/80 transition-all group-hover:bg-primary"
+                      className="w-full rounded-t bg-primary/80 transition-all group-hover:bg-primary"
                       style={{ height: `${val}%` }}
                     />
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       {[8, 9, 11, 12, 1, 2, 4, 5, 7, 8][i]}h
                     </span>
                   </div>
@@ -671,19 +858,26 @@ export function CanteenView() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xs space-y-3">
-              <h3 className="font-bold text-foreground">Top Selling Items</h3>
+            {/* Top dishes list */}
+            <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-3">
+              <h3 className="font-bold text-foreground text-sm sm:text-base">
+                Top Selling Items
+              </h3>
               <div className="divide-y divide-border/60">
                 {[
-                  { name: "Masala Dosa", count: 48, revenue: "₹4,560" },
-                  { name: "Cold Coffee", count: 42, revenue: "₹3,570" },
-                  { name: "Paneer Tikka Wrap", count: 31, revenue: "₹4,185" },
-                  { name: "Hyderabadi Veg Biryani", count: 24, revenue: "₹3,840" },
-                ].map((dish, i) => (
-                  <div key={dish.name} className="py-2.5 flex items-center justify-between text-xs sm:text-sm">
-                    <div>
-                      <p className="font-bold text-foreground">{dish.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{dish.count} orders</p>
+                  { name: "Masala Dosa", emoji: "🥞", count: 48, revenue: "₹4,320" },
+                  { name: "Cold Coffee", emoji: "☕", count: 42, revenue: "₹2,940" },
+                  { name: "Paneer Tikka Wrap", emoji: "🌯", count: 31, revenue: "₹4,185" },
+                  { name: "Hyderabadi Veg Biryani", emoji: "🍚", count: 24, revenue: "₹3,360" },
+                  { name: "Veg Burger", emoji: "🍔", count: 22, revenue: "₹1,760" },
+                ].map((dish) => (
+                  <div key={dish.name} className="py-2 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base select-none">{dish.emoji}</span>
+                      <div>
+                        <p className="font-bold text-foreground">{dish.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{dish.count} orders</p>
+                      </div>
                     </div>
                     <span className="font-extrabold text-foreground">{dish.revenue}</span>
                   </div>
@@ -694,87 +888,114 @@ export function CanteenView() {
         </div>
       )}
 
-      {/* Add / Edit Food Item Modal */}
+      {/* Add / Edit Food Item Modal (POS-Style) */}
       <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-6 sm:p-7 shadow-card">
+        <DialogContent className="max-w-md rounded-2xl p-5 sm:p-6 shadow-card border border-border">
           <DialogHeader className="text-left border-b border-border/60 pb-3">
-            <DialogTitle className="text-lg font-bold text-foreground">
-              {editingItem ? "Edit Menu Item" : "Add New Item"}
+            <DialogTitle className="text-base font-bold text-foreground">
+              {editingItem ? "Edit Catalog Item" : "Add Menu Item"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="mt-4 space-y-4 text-xs sm:text-sm">
+          <div className="mt-3 space-y-3.5 text-xs sm:text-sm">
             <div>
-              <Label htmlFor="dish-name">Item Name *</Label>
+              <Label htmlFor="dish-name" className="text-xs font-semibold">
+                Item Name *
+              </Label>
               <Input
                 id="dish-name"
                 value={itemName}
                 onChange={(e) => setItemName(e.target.value)}
                 placeholder="e.g. Masala Dosa"
-                className="mt-1 rounded-xl"
+                className="mt-1 h-9 rounded-lg text-xs"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="dish-price">Price (₹) *</Label>
+                <Label htmlFor="dish-price" className="text-xs font-semibold">
+                  Price (₹) *
+                </Label>
                 <Input
                   id="dish-price"
                   type="number"
                   value={itemPrice}
                   onChange={(e) => setItemPrice(e.target.value)}
-                  placeholder="95"
-                  className="mt-1 rounded-xl"
+                  placeholder="90"
+                  className="mt-1 h-9 rounded-lg text-xs"
                 />
               </div>
 
               <div>
-                <Label>Category</Label>
+                <Label className="text-xs font-semibold">Category *</Label>
                 <Select
                   value={itemCategory}
-                  onValueChange={(v) => setItemCategory(v as FoodItem["category"])}
+                  onValueChange={(v) => {
+                    const cat = v as FoodItem["category"];
+                    setItemCategory(cat);
+                    if (!itemEmoji) setItemEmoji(getCategoryEmoji(cat));
+                  }}
                 >
-                  <SelectTrigger className="mt-1 h-9 rounded-xl text-xs">
+                  <SelectTrigger className="mt-1 h-9 rounded-lg text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl">
-                    <SelectItem value="Breakfast" className="text-xs">Breakfast</SelectItem>
-                    <SelectItem value="Snacks" className="text-xs">Snacks</SelectItem>
-                    <SelectItem value="Meals" className="text-xs">Meals</SelectItem>
-                    <SelectItem value="Drinks" className="text-xs">Drinks</SelectItem>
-                    <SelectItem value="Desserts" className="text-xs">Desserts</SelectItem>
+                  <SelectContent className="rounded-lg">
+                    <SelectItem value="Breakfast" className="text-xs">🥞 Breakfast</SelectItem>
+                    <SelectItem value="Snacks" className="text-xs">🥪 Snacks</SelectItem>
+                    <SelectItem value="Meals" className="text-xs">🍛 Meals</SelectItem>
+                    <SelectItem value="Drinks" className="text-xs">🥤 Drinks</SelectItem>
+                    <SelectItem value="Desserts" className="text-xs">🍰 Desserts</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="dish-prep">Preparation Time</Label>
-              <Input
-                id="dish-prep"
-                value={itemPrep}
-                onChange={(e) => setItemPrep(e.target.value)}
-                placeholder="e.g. 10-12 min"
-                className="mt-1 rounded-xl"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="dish-emoji" className="text-xs font-semibold">
+                  Food Emoji (Icon)
+                </Label>
+                <Input
+                  id="dish-emoji"
+                  value={itemEmoji}
+                  onChange={(e) => setItemEmoji(e.target.value)}
+                  placeholder="e.g. 🥞"
+                  className="mt-1 h-9 rounded-lg text-xs"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="dish-prep" className="text-xs font-semibold">
+                  Preparation Time
+                </Label>
+                <Input
+                  id="dish-prep"
+                  value={itemPrep}
+                  onChange={(e) => setItemPrep(e.target.value)}
+                  placeholder="e.g. 10-12 min"
+                  className="mt-1 h-9 rounded-lg text-xs"
+                />
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="dish-desc">Description</Label>
+              <Label htmlFor="dish-desc" className="text-xs font-semibold">
+                Brief Description (Optional)
+              </Label>
               <Textarea
                 id="dish-desc"
                 value={itemDesc}
                 onChange={(e) => setItemDesc(e.target.value)}
-                placeholder="Crispy crepe served with coconut chutney and sambar"
-                className="mt-1 rounded-xl text-xs resize-none"
-                rows={3}
+                placeholder="Crisp crepe served with coconut chutney and hot sambar."
+                className="mt-1 rounded-lg text-xs resize-none"
+                rows={2}
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-border/70 p-3">
+            <div className="flex items-center justify-between rounded-lg border border-border p-2.5 bg-muted/30">
               <div>
-                <p className="text-xs font-bold text-foreground">Available on Menu</p>
-                <p className="text-[11px] text-muted-foreground">Turn off if temporarily out of stock</p>
+                <p className="text-xs font-bold text-foreground">Available on POS Menu</p>
+                <p className="text-[11px] text-muted-foreground">Toggle off when item runs out of stock</p>
               </div>
               <Switch
                 checked={itemAvailable}
@@ -783,25 +1004,26 @@ export function CanteenView() {
             </div>
 
             {itemFormError && (
-              <p className="text-xs font-semibold text-destructive">
+              <p className="text-xs font-semibold text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5" />
                 {itemFormError}
               </p>
             )}
           </div>
 
-          <div className="mt-6 flex justify-end gap-2">
+          <div className="mt-4 flex justify-end gap-2 border-t border-border/60 pt-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsItemModalOpen(false)}
-              className="rounded-full text-xs font-semibold"
+              className="rounded-lg text-xs font-semibold h-8"
             >
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={handleSaveItem}
-              className="rounded-full text-xs font-bold"
+              className="rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4"
             >
               Save Item
             </Button>
