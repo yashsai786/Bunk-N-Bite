@@ -3,6 +3,7 @@ import { Check, Clock, PackageCheck, Store, Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Order, OrderStatus } from "../types";
 import { StatusBadge } from "./StatusBadge";
+import { getFoodEmoji } from "./FoodEmoji";
 
 const stages: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
   { status: "Placed", label: "Order Placed", icon: Check },
@@ -129,12 +130,13 @@ export function OrderTimeline({ order }: { order: Order }) {
         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Items Ordered
         </p>
-        <div className="divide-y divide-border/50 rounded-2xl border border-border/70 bg-card p-3 sm:p-4">
+        <div className="divide-y divide-border/50 rounded-xl border border-border/70 bg-card p-3 sm:p-4">
           {order.items.map((item, idx) => (
             <div key={idx} className="flex items-center justify-between py-2 text-xs sm:text-sm">
-              <span className="font-medium text-foreground">
-                <span className="font-bold text-primary mr-2">{item.quantity}×</span>
-                {item.name}
+              <span className="font-medium text-foreground flex items-center gap-1.5">
+                <span className="font-bold text-primary mr-1">{item.quantity}×</span>
+                <span>{getFoodEmoji(item.name)}</span>
+                <span>{item.name}</span>
               </span>
               <span className="font-semibold text-foreground">
                 ₹{item.price * item.quantity}
