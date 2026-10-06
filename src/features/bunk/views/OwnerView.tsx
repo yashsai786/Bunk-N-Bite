@@ -64,17 +64,17 @@ export function OwnerView() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* 1. OVERVIEW TAB */}
       {activeTab === "Overview" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Platform Overview
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Platform Operations
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Live multi-campus institutional dashboard.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Central multi-campus platform monitoring & institutional governance.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -82,34 +82,35 @@ export function OwnerView() {
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveTab("Requests")}
-                className="rounded-full text-xs font-semibold"
+                className="rounded-lg text-xs font-semibold h-8"
               >
-                View Requests ({pendingRequests.length})
+                Onboarding Requests ({pendingRequests.length})
               </Button>
             </div>
           </div>
 
-          <MetricGrid>
+          {/* Platform Metrics */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
               label="Universities"
               value={String(universities.length)}
               icon={Building2}
               delta="+1 this month"
-              subtext="4 onboarded, 3 under review"
+              subtext="4 active campuses"
             />
             <MetricCard
               label="Pending Requests"
               value={String(pendingRequests.length)}
               icon={Clock}
               delta="Action required"
-              subtext="Awaiting Owner Admin review"
+              subtext="Awaiting verification"
             />
             <MetricCard
               label="Active Canteens"
               value={String(activeCanteensCount)}
               icon={Store}
               delta="+14.2%"
-              subtext="Across all partner campuses"
+              subtext="Food outlets enabled"
             />
             <MetricCard
               label="Orders Today"
@@ -118,26 +119,26 @@ export function OwnerView() {
               delta="+12.6%"
               subtext="₹4.82L Gross Platform GMV"
             />
-          </MetricGrid>
+          </div>
 
-          {/* Pending University Requests Queue */}
-          <div className="rounded-3xl border border-border/70 bg-card p-5 sm:p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
+          {/* Pending University Requests Review Queue */}
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-3 border-b border-border/60 pb-2.5">
               <div>
-                <h2 className="text-base font-bold text-foreground sm:text-lg">
-                  Incoming University Requests
+                <h2 className="text-sm font-bold text-foreground sm:text-base">
+                  Incoming University Onboarding Requests
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Institutions requesting onboarding access to BUNK N BITE.
+                  New higher-ed institutions requesting admission to the platform.
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setActiveTab("Requests")}
-                className="text-xs font-semibold"
+                className="text-xs font-semibold text-primary hover:text-primary/90 h-8"
               >
-                See all
+                All Requests ({universityRequests.length})
               </Button>
             </div>
 
@@ -145,46 +146,46 @@ export function OwnerView() {
               <EmptyState title="No pending university requests" />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
+                <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-border/60 text-muted-foreground">
-                      <th className="pb-3 font-semibold">University</th>
-                      <th className="pb-3 font-semibold">Requested By</th>
-                      <th className="pb-3 font-semibold">Campus Location</th>
-                      <th className="pb-3 font-semibold">Est. Canteens</th>
-                      <th className="pb-3 font-semibold">Status</th>
-                      <th className="pb-3 text-right font-semibold">Action</th>
+                    <tr className="border-b border-border bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase">
+                      <th className="py-2.5 px-3">University</th>
+                      <th className="py-2.5 px-3">Contact Person</th>
+                      <th className="py-2.5 px-3">Campus Location</th>
+                      <th className="py-2.5 px-3">Est. Canteens</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Approval Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/40">
+                  <tbody className="divide-y divide-border/60">
                     {pendingRequests.map((req) => (
                       <tr key={req.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3.5 font-bold text-foreground">
+                        <td className="py-2.5 px-3 font-bold text-foreground">
                           {req.university}
                         </td>
-                        <td className="py-3.5 text-muted-foreground">
+                        <td className="py-2.5 px-3 text-muted-foreground">
                           <p className="font-semibold text-foreground">{req.requestedBy}</p>
                           <p className="text-[11px]">{req.email}</p>
                         </td>
-                        <td className="py-3.5 text-muted-foreground">
+                        <td className="py-2.5 px-3 text-muted-foreground">
                           {req.campusLocation}
                         </td>
-                        <td className="py-3.5 font-semibold text-foreground">
-                          {req.canteenCountEst} canteens
+                        <td className="py-2.5 px-3 font-semibold text-foreground">
+                          {req.canteenCountEst} outlets
                         </td>
-                        <td className="py-3.5">
+                        <td className="py-2.5 px-3">
                           <StatusBadge status={req.status} />
                         </td>
-                        <td className="py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <Button
                               size="sm"
                               onClick={() =>
                                 setConfirmAction({ type: "approve", request: req })
                               }
-                              className="h-8 rounded-full bg-foreground text-background text-xs font-bold hover:bg-emerald-600 hover:text-white"
+                              className="h-7 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold px-2.5 shadow-2xs"
                             >
-                              <Check className="mr-1 size-3.5" />
+                              <Check className="mr-1 size-3" />
                               Approve
                             </Button>
                             <Button
@@ -193,9 +194,9 @@ export function OwnerView() {
                               onClick={() =>
                                 setConfirmAction({ type: "reject", request: req })
                               }
-                              className="h-8 rounded-full text-xs font-bold text-destructive hover:bg-destructive/10"
+                              className="h-7 rounded-md text-xs font-semibold text-destructive hover:bg-destructive/10 px-2.5 border-border"
                             >
-                              <X className="mr-1 size-3.5" />
+                              <X className="mr-1 size-3" />
                               Reject
                             </Button>
                           </div>
@@ -212,56 +213,59 @@ export function OwnerView() {
 
       {/* 2. UNIVERSITIES TAB */}
       {activeTab === "Universities" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Universities
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Partner Universities
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Authorized educational campuses on BUNK N BITE.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Authorized educational campuses configured on BUNK N BITE.
               </p>
             </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search university or city..."
-                className="rounded-full pl-10 text-xs shadow-xs"
+                className="h-8 rounded-lg pl-8 text-xs bg-card"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filteredUniversities.map((univ) => (
               <div
                 key={univ.id}
-                className="flex flex-col justify-between rounded-3xl border border-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-card"
+                className="flex flex-col justify-between rounded-xl border border-border bg-card p-4 shadow-xs hover:border-primary/40 transition-colors"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="grid size-11 place-items-center rounded-2xl bg-muted font-black text-foreground">
-                      {univ.name
-                        .split(" ")
-                        .map((w) => w[0])
-                        .slice(0, 2)
-                        .join("")}
+                  <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="grid size-9 place-items-center rounded-lg bg-muted font-bold text-foreground shrink-0 border border-border/80">
+                        {univ.name
+                          .split(" ")
+                          .map((w) => w[0])
+                          .slice(0, 2)
+                          .join("")}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground">
+                          {univ.name}
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground">
+                          {univ.location}
+                        </p>
+                      </div>
                     </div>
                     <StatusBadge status={univ.status} />
                   </div>
 
-                  <h3 className="mt-4 text-base font-bold text-foreground">
-                    {univ.name}
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {univ.location}
-                  </p>
-
-                  <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-border/60 bg-muted/20 p-3 text-xs">
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-muted/30 p-2.5 text-xs">
                     <div>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">
                         Canteens
                       </span>
                       <p className="font-bold text-foreground text-sm">
@@ -269,7 +273,7 @@ export function OwnerView() {
                       </p>
                     </div>
                     <div>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">
                         Students
                       </span>
                       <p className="font-bold text-foreground text-sm">
@@ -279,17 +283,17 @@ export function OwnerView() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-center justify-between border-t border-border/50 pt-3">
-                  <span className="text-xs text-muted-foreground font-medium">
+                <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2 text-xs">
+                  <span className="text-[11px] text-muted-foreground font-medium">
                     Admin: {univ.contactPerson}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedUnivDetail(univ)}
-                    className="h-8 rounded-full text-xs font-bold"
+                    className="h-7 rounded-md text-xs font-semibold px-2.5 hover:border-primary/50"
                   >
-                    Open Details
+                    Details
                   </Button>
                 </div>
               </div>
@@ -300,92 +304,91 @@ export function OwnerView() {
 
       {/* 3. REQUESTS TAB */}
       {activeTab === "Requests" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                University Requests
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Onboarding Requests Queue
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Review and approve institutional onboarding applications.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Review, approve, or reject campus partnership applications.
               </p>
             </div>
 
-            {/* Filter capsules */}
-            <div className="flex gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-xs">
-              {["All", "Pending", "Review", "Approved", "Rejected"].map((cat) => (
+            <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 shadow-2xs">
+              {["All", "Pending", "Review", "Approved", "Rejected"].map((status) => (
                 <button
-                  key={cat}
-                  onClick={() => setRequestFilter(cat)}
-                  className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
-                    requestFilter === cat
-                      ? "bg-foreground text-background"
+                  key={status}
+                  onClick={() => setRequestFilter(status)}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    requestFilter === status
+                      ? "bg-primary text-primary-foreground font-bold shadow-xs"
                       : "text-muted-foreground hover:bg-muted"
                   }`}
                 >
-                  {cat}
+                  {status}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="rounded-3xl border border-border/70 bg-card p-5 sm:p-6 shadow-xs">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
             {filteredRequests.length === 0 ? (
-              <EmptyState title={`No requests under '${requestFilter}' status`} />
+              <EmptyState title={`No requests in '${requestFilter}' status`} />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
+                <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-border/60 text-muted-foreground">
-                      <th className="pb-3 font-semibold">University</th>
-                      <th className="pb-3 font-semibold">Requester</th>
-                      <th className="pb-3 font-semibold">Contact</th>
-                      <th className="pb-3 font-semibold">Date</th>
-                      <th className="pb-3 font-semibold">Status</th>
-                      <th className="pb-3 text-right font-semibold">Actions</th>
+                    <tr className="border-b border-border bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase">
+                      <th className="py-2.5 px-3">University</th>
+                      <th className="py-2.5 px-3">Representative</th>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Est. Canteens</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/40">
+                  <tbody className="divide-y divide-border/60">
                     {filteredRequests.map((req) => (
                       <tr key={req.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3.5">
+                        <td className="py-2.5 px-3">
                           <p className="font-bold text-foreground">{req.university}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {req.campusLocation}
-                          </p>
+                          <p className="text-[11px] text-muted-foreground">{req.campusLocation}</p>
                         </td>
-                        <td className="py-3.5 font-medium text-foreground">
-                          {req.requestedBy}
+                        <td className="py-2.5 px-3 text-muted-foreground">
+                          <p className="font-semibold text-foreground">{req.requestedBy}</p>
+                          <p className="text-[11px]">{req.email} • {req.phone}</p>
                         </td>
-                        <td className="py-3.5 text-muted-foreground text-[11px]">
-                          <p>{req.email}</p>
-                          <p>{req.phone}</p>
+                        <td className="py-2.5 px-3 text-muted-foreground">{req.date}</td>
+                        <td className="py-2.5 px-3 font-semibold text-foreground">
+                          {req.canteenCountEst} outlets
                         </td>
-                        <td className="py-3.5 text-muted-foreground">{req.date}</td>
-                        <td className="py-3.5">
+                        <td className="py-2.5 px-3">
                           <StatusBadge status={req.status} />
                         </td>
-                        <td className="py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <Button
                               size="sm"
                               disabled={req.status === "Approved"}
                               onClick={() =>
                                 setConfirmAction({ type: "approve", request: req })
                               }
-                              className="h-8 rounded-full text-xs font-bold"
+                              className="h-7 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold px-2.5 shadow-2xs"
                             >
+                              <Check className="mr-1 size-3" />
                               Approve
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               disabled={req.status === "Rejected"}
                               onClick={() =>
                                 setConfirmAction({ type: "reject", request: req })
                               }
-                              className="h-8 rounded-full text-xs font-bold text-destructive hover:bg-destructive/10"
+                              className="h-7 rounded-md text-xs font-semibold text-destructive hover:bg-destructive/10 px-2.5 border-border"
                             >
+                              <X className="mr-1 size-3" />
                               Reject
                             </Button>
                           </div>
@@ -402,172 +405,143 @@ export function OwnerView() {
 
       {/* 4. ANALYTICS TAB */}
       {activeTab === "Analytics" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Platform Analytics
-              </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Consolidated university campus transaction volume.
-              </p>
-            </div>
+        <div className="space-y-4">
+          <div className="border-b border-border/70 pb-3">
+            <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+              Platform Analytics
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Cross-campus dining velocity and macro platform revenue.
+            </p>
           </div>
 
-          <MetricGrid>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
-              label="Gross GMV (Month)"
-              value="₹48.2L"
+              label="Platform GMV"
+              value="₹4,82,600"
               icon={IndianRupee}
               delta="+14.8%"
+              subtext="Today's aggregate"
             />
             <MetricCard
               label="Total Orders"
-              value="124,800"
+              value="4,286"
               icon={ShoppingBag}
-              delta="+8.2%"
+              delta="+11.4%"
+              subtext="Across all partner colleges"
             />
             <MetricCard
-              label="Active Campuses"
-              value="4"
-              icon={Building2}
-              delta="100% SLA"
-            />
-            <MetricCard
-              label="Avg. Campus Order"
-              value="₹184"
+              label="Active Outlets"
+              value={String(activeCanteensCount)}
               icon={Store}
-              delta="+4.1%"
+              delta="100% active"
+              subtext="Connected POS counters"
             />
-          </MetricGrid>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="rounded-3xl border border-border/70 bg-card p-6 lg:col-span-2 shadow-xs">
-              <h3 className="font-bold text-foreground">Multi-Campus Order Volume (Last 12 Days)</h3>
-              <p className="text-xs text-muted-foreground mt-1">Normalized daily campus checkouts.</p>
-
-              {/* Minimalist modern bar chart */}
-              <div className="mt-6 flex h-60 items-end gap-2.5 sm:gap-4 border-b border-border/60 pb-2">
-                {[45, 62, 58, 80, 72, 94, 88, 100, 78, 89, 92, 85].map((val, i) => (
-                  <div key={i} className="flex flex-1 flex-col items-center gap-1.5 group">
-                    <div
-                      className="w-full rounded-t-lg bg-primary/75 transition-all group-hover:bg-primary"
-                      style={{ height: `${val}%` }}
-                    />
-                    <span className="text-[10px] text-muted-foreground">D{i + 1}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xs space-y-4">
-              <h3 className="font-bold text-foreground">Top Performing Campuses</h3>
-              <div className="divide-y divide-border/60 space-y-3">
-                {universities.map((u, i) => (
-                  <div key={u.id} className="pt-3 flex items-center justify-between text-xs sm:text-sm">
-                    <div>
-                      <p className="font-bold text-foreground">{u.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{u.canteens} canteens</p>
-                    </div>
-                    <span className="font-extrabold text-foreground">
-                      ₹{[18.4, 9.2, 14.1, 6.5][i]}L
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <MetricCard
+              label="Partner Campuses"
+              value={String(universities.length)}
+              icon={Building2}
+              delta="+1 Onboarded"
+              subtext="Gujarat Higher Ed Region"
+            />
           </div>
         </div>
       )}
 
       {/* University Detail Modal */}
-      {selectedUnivDetail && (
-        <Dialog open={!!selectedUnivDetail} onOpenChange={() => setSelectedUnivDetail(null)}>
-          <DialogContent className="max-w-lg rounded-3xl p-6 shadow-card">
-            <DialogHeader className="text-left border-b border-border/60 pb-3">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-lg font-bold text-foreground">
-                  {selectedUnivDetail.name}
-                </DialogTitle>
-                <StatusBadge status={selectedUnivDetail.status} />
-              </div>
-              <p className="text-xs text-muted-foreground">{selectedUnivDetail.location}</p>
-            </DialogHeader>
+      <Dialog
+        open={!!selectedUnivDetail}
+        onOpenChange={(open) => !open && setSelectedUnivDetail(null)}
+      >
+        <DialogContent className="max-w-md rounded-2xl p-5 shadow-card border border-border">
+          {selectedUnivDetail && (
+            <div className="space-y-3">
+              <DialogHeader className="text-left border-b border-border/60 pb-2.5">
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-base font-bold text-foreground">
+                    {selectedUnivDetail.name}
+                  </DialogTitle>
+                  <StatusBadge status={selectedUnivDetail.status} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {selectedUnivDetail.location}
+                </p>
+              </DialogHeader>
 
-            <div className="mt-4 space-y-3 text-xs sm:text-sm">
-              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3 text-xs">
                 <div>
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                    Partner Since
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Canteens
                   </span>
-                  <p className="font-bold text-foreground">{selectedUnivDetail.joinedDate}</p>
+                  <p className="font-bold text-foreground text-sm">
+                    {selectedUnivDetail.canteens} outlets
+                  </p>
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                    Student Population
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Students
                   </span>
-                  <p className="font-bold text-foreground">{selectedUnivDetail.students}</p>
-                </div>
-                <div>
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                    Active Canteens
-                  </span>
-                  <p className="font-bold text-foreground">{selectedUnivDetail.canteens}</p>
-                </div>
-                <div>
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                    Campus Admin
-                  </span>
-                  <p className="font-bold text-foreground">{selectedUnivDetail.contactPerson}</p>
+                  <p className="font-bold text-foreground text-sm">
+                    {selectedUnivDetail.students}
+                  </p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border/70 p-4">
-                <p className="text-xs font-bold text-foreground mb-1">Administrative Contact</p>
-                <p className="text-xs text-muted-foreground">{selectedUnivDetail.contactEmail}</p>
+              <div className="space-y-1.5 text-xs py-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Contact Administrator:</span>
+                  <span className="font-bold text-foreground">{selectedUnivDetail.contactPerson}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Official Email:</span>
+                  <span className="font-medium text-foreground">{selectedUnivDetail.contactEmail}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Partner Since:</span>
+                  <span className="font-medium text-foreground">{selectedUnivDetail.joinedDate}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="sm"
+                  onClick={() => setSelectedUnivDetail(null)}
+                  className="rounded-lg text-xs font-semibold h-8"
+                >
+                  Close
+                </Button>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-            <div className="mt-6 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedUnivDetail(null)}
-                className="rounded-full text-xs font-semibold"
-              >
-                Close
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Confirmation Modal for Approving / Rejecting */}
-      {confirmAction && (
-        <ConfirmModal
-          open={!!confirmAction}
-          onOpenChange={(open) => !open && setConfirmAction(null)}
-          title={
-            confirmAction.type === "approve"
-              ? `Approve ${confirmAction.request.university}?`
-              : `Reject request from ${confirmAction.request.university}?`
+      {/* Confirmation Modal for University Request Approval/Rejection */}
+      <ConfirmModal
+        open={!!confirmAction}
+        onOpenChange={(open) => !open && setConfirmAction(null)}
+        title={
+          confirmAction?.type === "approve"
+            ? "Approve University Onboarding?"
+            : "Reject University Request?"
+        }
+        description={
+          confirmAction?.type === "approve"
+            ? `Grant platform access to ${confirmAction.request.university}. An automated admin onboarding kit will be issued.`
+            : `Decline institutional onboarding application from ${confirmAction?.request.requestedBy}.`
+        }
+        confirmLabel={confirmAction?.type === "approve" ? "Approve Campus" : "Reject"}
+        isDestructive={confirmAction?.type === "reject"}
+        onConfirm={() => {
+          if (!confirmAction) return;
+          if (confirmAction.type === "approve") {
+            approveUniversityRequest(confirmAction.request.id);
+          } else {
+            rejectUniversityRequest(confirmAction.request.id);
           }
-          description={
-            confirmAction.type === "approve"
-              ? "The university will be granted official active status and can immediately onboard campus canteens and students."
-              : "The requester will be notified of the rejection."
-          }
-          confirmLabel={confirmAction.type === "approve" ? "Approve University" : "Reject Request"}
-          isDestructive={confirmAction.type === "reject"}
-          onConfirm={() => {
-            if (confirmAction.type === "approve") {
-              approveUniversityRequest(confirmAction.request.id);
-            } else {
-              rejectUniversityRequest(confirmAction.request.id);
-            }
-          }}
-        />
-      )}
+          setConfirmAction(null);
+        }}
+      />
     </div>
   );
 }
