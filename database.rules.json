@@ -1,0 +1,80 @@
+{
+  "rules": {
+    "users": {
+      ".indexOn": ["email", "role"],
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'university')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'university')",
+        "instituteMemberships": {
+          "$univId": {
+            ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'owner' || (root.child('users').child(auth.uid).child('role').val() === 'university' && (root.child('users').child(auth.uid).child('universityId').val() === $univId || root.child('users').child(auth.uid).child('instituteMemberships').child($univId).exists())))"
+          }
+        }
+      }
+    },
+    "universityMemberships": {
+      "$universityId": {
+        ".read": "auth != null",
+        "$memberKey": {
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || (root.child('users').child(auth.uid).child('role').val() === 'university' && (root.child('users').child(auth.uid).child('universityId').val() === $universityId || root.child('users').child(auth.uid).child('instituteMemberships').child($universityId).exists())))"
+        }
+      }
+    },
+    "studentInvitations": {
+      ".read": "auth != null",
+      ".indexOn": ["email", "universityId", "status"],
+      "$inviteId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'university' || !data.exists())"
+      }
+    },
+    "mailQueue": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'owner'",
+      "$mailId": {
+        ".write": "auth != null"
+      }
+    },
+    "universities": {
+      ".read": true,
+      "$universityId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'owner'"
+      }
+    },
+    "universityRequests": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'owner'",
+      "$requestId": {
+        ".write": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'owner')"
+      }
+    },
+    "campusCodes": {
+      ".read": true,
+      "$code": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'owner'"
+      }
+    },
+    "canteens": {
+      ".read": true,
+      "$canteenId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || (root.child('users').child(auth.uid).child('role').val() === 'university' && root.child('users').child(auth.uid).child('universityId').val() === newData.child('universityId').val()))"
+      }
+    },
+    "canteenRequests": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'university')",
+      "$requestId": {
+        ".write": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'university')"
+      }
+    },
+    "foods": {
+      ".read": true,
+      "$foodId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'canteen')"
+      }
+    },
+    "orders": {
+      ".read": "auth != null || true",
+      "$orderId": {
+        ".read": "true",
+        ".write": "auth != null || (!data.exists() && newData.child('customerRole').val() === 'Visitor')"
+      }
+    }
+  }
+}
