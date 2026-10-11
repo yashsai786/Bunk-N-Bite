@@ -12,14 +12,17 @@ interface FoodCardProps {
 }
 
 export function FoodCard({ food, className }: FoodCardProps) {
-  const { cart, addToCart, updateCartQuantity, setSelectedFoodDetail } = useBunk();
+  const { cart, addToCart, updateCartQuantity, setSelectedFoodDetail, canteens } = useBunk();
   const quantityInCart = cart[food.id] || 0;
+  const canteen = canteens.find((c) => c.id === food.canteenId);
+  const isCanteenSuspended =
+    canteen?.operationalStatus === "Suspended" || canteen?.status === "Closed";
 
   return (
     <article
       className={cn(
         "group relative flex flex-col justify-between rounded-xl border border-border bg-card p-3.5 shadow-xs transition-all duration-150 hover:border-primary/50 hover:shadow-sm",
-        !food.available && "opacity-60 bg-muted/30 cursor-not-allowed",
+        (!food.available || isCanteenSuspended) && "opacity-60 bg-muted/30 cursor-not-allowed",
         className
       )}
     >
@@ -78,6 +81,10 @@ export function FoodCard({ food, className }: FoodCardProps) {
         {!food.available ? (
           <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
             Sold out
+          </span>
+        ) : isCanteenSuspended ? (
+          <span className="rounded-md bg-rose-500/10 px-2 py-0.5 text-[11px] font-bold text-rose-600 border border-rose-500/20">
+            Suspended
           </span>
         ) : quantityInCart > 0 ? (
           <div
