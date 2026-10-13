@@ -75,9 +75,9 @@ export function StudentView() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"UPI" | "Cards" | "Net Banking">("UPI");
 
   const activeUniv =
-    universities.find((u) => u.id === selectedUniversityId) || universities[0]!;
+    universities.find((u) => u.id === selectedUniversityId) || universities[0];
   const activeCanteen =
-    canteens.find((c) => c.id === selectedCanteenId) || canteens[0]!;
+    canteens.find((c) => c.id === selectedCanteenId) || canteens[0];
 
   const filteredFoods = foods.filter((f) => {
     const matchCategory =
@@ -119,7 +119,7 @@ export function StudentView() {
                 Canteen Counter Terminal
               </h1>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Order directly from <span className="font-bold text-foreground">{activeCanteen.name}</span> • {activeUniv.name}
+                Order directly from <span className="font-bold text-foreground">{activeCanteen?.name || "Campus Dining"}</span> • {activeUniv?.name || "Campus"}
               </p>
             </div>
 
@@ -160,6 +160,16 @@ export function StudentView() {
               </Select>
             </div>
           </div>
+
+          {/* Suspended Alert Banner for Student */}
+          {(activeCanteen?.operationalStatus === "Suspended" || activeCanteen?.status === "Closed") && (
+            <div className="rounded-xl border border-rose-300 bg-rose-50/70 p-3.5 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 flex items-center gap-2.5 shadow-2xs">
+              <AlertCircle className="size-4 shrink-0 text-rose-600" />
+              <span>
+                <strong>Canteen Temporarily Suspended:</strong> {activeCanteen?.name || "This canteen"} is currently suspended by campus management. New orders cannot be placed.
+              </span>
+            </div>
+          )}
 
           {/* Desktop Two-Panel Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -393,10 +403,10 @@ export function StudentView() {
                     </div>
                     <div>
                       <h3 className="font-bold text-foreground text-xs sm:text-sm">
-                        Pickup at {activeCanteen.name}
+                        Pickup at {activeCanteen?.name || "Canteen Counter"}
                       </h3>
                       <p className="text-[11px] text-muted-foreground">
-                        {activeCanteen.counterLocation} • {activeUniv.name}
+                        {activeCanteen?.counterLocation || "Food Court"} • {activeUniv?.name || "Campus"}
                       </p>
                     </div>
                   </div>

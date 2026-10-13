@@ -83,7 +83,7 @@ export function CanteenView() {
   const [itemFormError, setItemFormError] = useState("");
 
   const activeCanteen =
-    canteens.find((c) => c.id === selectedCanteenId) || canteens[0]!;
+    canteens.find((c) => c.id === selectedCanteenId) || canteens[0];
 
   const canteenOrders = orders.filter(
     (o) => o.canteenId === selectedCanteenId
@@ -98,6 +98,36 @@ export function CanteenView() {
   const completedCount = canteenOrders.filter(
     (o) => o.status === "Completed"
   ).length;
+
+  const canteenSales = canteenOrders.reduce(
+    (sum, o) => sum + (o.paymentStatus === "Paid" ? o.total : 0),
+    0
+  );
+
+  const avgTicket = canteenOrders.length > 0 ? Math.round(canteenSales / canteenOrders.length) : 0;
+
+  const itemSalesMap: Record<string, { name: string; emoji?: string; count: number; revenue: number }> = {};
+  canteenOrders.forEach((o) => {
+    o.items.forEach((item) => {
+      if (!itemSalesMap[item.name]) {
+        itemSalesMap[item.name] = {
+          name: item.name,
+          emoji: getFoodEmoji(item.name),
+          count: 0,
+          revenue: 0,
+        };
+      }
+      const dishEntry = itemSalesMap[item.name];
+      if (dishEntry) {
+        dishEntry.count += item.quantity;
+        dishEntry.revenue += item.price * item.quantity;
+      }
+    });
+  });
+  const topSellingDishes = Object.values(itemSalesMap)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  const topDish = topSellingDishes[0];
 
   const canteenFoods = foods.filter(
     (f) => f.canteenId === selectedCanteenId || true
@@ -220,8 +250,34 @@ export function CanteenView() {
   // Support both "Orders" and "Live Orders" tab names
   const isOrdersTab = activeTab === "Orders" || activeTab === "Live Orders";
 
+  if (!activeCanteen) {
+    return (
+      <div className="py-12">
+        <EmptyState
+          title="No canteens yet"
+          description="Register a new canteen outlet or seed initial campus food courts to activate the operational POS."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {/* Suspended Operational State Banner */}
+      {activeCanteen.operationalStatus === "Suspended" && (
+        <div className="rounded-xl border border-rose-300 bg-rose-50/70 p-3.5 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="size-4 shrink-0 text-rose-600" />
+            <span>
+              <strong>Canteen Suspended:</strong> Your outlet has been temporarily suspended by the University Admin. New customer orders are paused. You can continue preparing and fulfilling active tickets.
+            </span>
+          </div>
+          <span className="shrink-0 rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-black uppercase text-white tracking-wider">
+            Orders Paused
+          </span>
+        </div>
+      )}
+
       {/* 1. OVERVIEW TAB — POS Operations Dashboard */}
       {activeTab === "Overview" && (
         <div className="space-y-5">
@@ -232,7 +288,13 @@ export function CanteenView() {
                 <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
                   {activeCanteen.name}
                 </h1>
-                <StatusBadge status={activeCanteen.status} />
+                {activeCanteen.operationalStatus === "Suspended" ? (
+                  <span className="rounded-md bg-rose-500/15 px-2 py-0.5 text-[10px] font-extrabold text-rose-600 border border-rose-500/25">
+                    SUSPENDED
+                  </span>
+                ) : (
+                  <StatusBadge status={activeCanteen.status} />
+                )}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Petpooja-style operational POS & Kitchen Management Terminal.
@@ -251,17 +313,17 @@ export function CanteenView() {
           {/* Compact KPI Cards */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
-              label="Orders Today"
-              value={String(canteenOrders.length + 138)}
+              label="Orders Total"
+              value={String(canteenOrders.length)}
               icon={ShoppingBag}
-              delta="+14.2%"
+              delta={canteenOrders.length > 0 ? `${canteenOrders.length} placed` : "Zero tickets"}
               subtext="Total order volume"
             />
             <MetricCard
               label="Today's Sales"
-              value="₹24,850"
+              value={`₹${canteenSales.toLocaleString("en-IN")}`}
               icon={IndianRupee}
-              delta="+9.1%"
+              delta={canteenSales > 0 ? "Verified turnover" : "No sales yet"}
               subtext="Net gross turnover"
             />
             <MetricCard
@@ -273,9 +335,9 @@ export function CanteenView() {
             />
             <MetricCard
               label="Completed Orders"
-              value={String(completedCount + 124)}
+              value={String(completedCount)}
               icon={PackageCheck}
-              delta="99.2% fulfillment"
+              delta={completedCount > 0 ? `${completedCount} completed` : "0 completed"}
               subtext="Dispatched & handed off"
             />
           </div>
@@ -797,32 +859,32 @@ export function CanteenView() {
 
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
-              label="Today's GMV"
-              value="₹24,850"
+              label="Canteen GMV"
+              value={`₹${canteenSales.toLocaleString("en-IN")}`}
               icon={IndianRupee}
-              delta="+14.2%"
-              subtext="Vs. yesterday"
+              delta={canteenSales > 0 ? "Live gross" : "No sales"}
+              subtext="Realtime orders aggregate"
             />
             <MetricCard
               label="Orders Handled"
-              value="142"
+              value={String(canteenOrders.length)}
               icon={ShoppingBag}
-              delta="+9.0%"
+              delta={canteenOrders.length > 0 ? `${canteenOrders.length} tickets` : "Zero tickets"}
               subtext="Total tickets"
             />
             <MetricCard
               label="Average Ticket"
-              value="₹175"
+              value={`₹${avgTicket.toLocaleString("en-IN")}`}
               icon={Receipt}
-              delta="+3.8%"
+              delta={avgTicket > 0 ? "Per order value" : "N/A"}
               subtext="Per order value"
             />
             <MetricCard
               label="Top Dish"
-              value="Masala Dosa"
+              value={topDish ? topDish.name : "None yet"}
               icon={Coffee}
-              delta="48 orders"
-              subtext="🥞 Highest demand"
+              delta={topDish ? `${topDish.count} orders` : "No orders"}
+              subtext={topDish ? `${topDish.emoji || "🍽️"} Highest demand` : "Awaiting orders"}
             />
           </div>
 
@@ -864,24 +926,22 @@ export function CanteenView() {
                 Top Selling Items
               </h3>
               <div className="divide-y divide-border/60">
-                {[
-                  { name: "Masala Dosa", emoji: "🥞", count: 48, revenue: "₹4,320" },
-                  { name: "Cold Coffee", emoji: "☕", count: 42, revenue: "₹2,940" },
-                  { name: "Paneer Tikka Wrap", emoji: "🌯", count: 31, revenue: "₹4,185" },
-                  { name: "Hyderabadi Veg Biryani", emoji: "🍚", count: 24, revenue: "₹3,360" },
-                  { name: "Veg Burger", emoji: "🍔", count: 22, revenue: "₹1,760" },
-                ].map((dish) => (
-                  <div key={dish.name} className="py-2 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base select-none">{dish.emoji}</span>
-                      <div>
-                        <p className="font-bold text-foreground">{dish.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{dish.count} orders</p>
+                {topSellingDishes.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">No menu items ordered yet</p>
+                ) : (
+                  topSellingDishes.map((dish) => (
+                    <div key={dish.name} className="py-2 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base select-none">{dish.emoji || "🍽️"}</span>
+                        <div>
+                          <p className="font-bold text-foreground">{dish.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{dish.count} orders</p>
+                        </div>
                       </div>
+                      <span className="font-extrabold text-foreground">₹{dish.revenue.toLocaleString("en-IN")}</span>
                     </div>
-                    <span className="font-extrabold text-foreground">{dish.revenue}</span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
