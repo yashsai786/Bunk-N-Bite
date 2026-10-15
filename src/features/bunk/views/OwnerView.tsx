@@ -4,6 +4,7 @@ import {
   Calendar,
   Check,
   Clock,
+  Copy,
   ExternalLink,
   IndianRupee,
   Mail,
@@ -14,6 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,8 +52,19 @@ export function OwnerView() {
     request: UniversityRequest;
   } | null>(null);
 
+  // Success dialog displaying generated campus code upon approval
+  const [newlyApprovedCode, setNewlyApprovedCode] = useState<{
+    univName: string;
+    code: string;
+  } | null>(null);
+
   const pendingRequests = universityRequests.filter((r) => r.status === "Pending");
   const activeCanteensCount = universities.reduce((sum, u) => sum + u.canteens, 0);
+  const totalPlatformRevenue = orders.reduce(
+    (sum, o) => sum + (o.paymentStatus === "Paid" ? o.total : 0),
+    0
+  );
+  const totalOrdersCount = orders.length;
 
   const filteredUniversities = universities.filter((u) =>
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,11 +126,11 @@ export function OwnerView() {
               subtext="Food outlets enabled"
             />
             <MetricCard
-              label="Orders Today"
-              value="4,286"
+              label="Orders Total"
+              value={String(totalOrdersCount)}
               icon={ShoppingBag}
-              delta="+12.6%"
-              subtext="₹4.82L Gross Platform GMV"
+              delta={totalOrdersCount > 0 ? `${totalOrdersCount} recorded` : "Zero orders"}
+              subtext={`₹${totalPlatformRevenue.toLocaleString("en-IN")} Platform GMV`}
             />
           </div>
 
@@ -284,9 +297,12 @@ export function OwnerView() {
                 </div>
 
                 <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2 text-xs">
-                  <span className="text-[11px] text-muted-foreground font-medium">
-                    Admin: {univ.contactPerson}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Code:</span>
+                    <span className="font-mono text-xs font-bold text-primary">
+                      {univ.campusCode || "N/A"}
+                    </span>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -418,16 +434,16 @@ export function OwnerView() {
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MetricCard
               label="Platform GMV"
-              value="₹4,82,600"
+              value={`₹${totalPlatformRevenue.toLocaleString("en-IN")}`}
               icon={IndianRupee}
-              delta="+14.8%"
-              subtext="Today's aggregate"
+              delta={totalPlatformRevenue > 0 ? "Verified gross" : "No sales recorded"}
+              subtext="Live orders aggregate"
             />
             <MetricCard
               label="Total Orders"
-              value="4,286"
+              value={String(totalOrdersCount)}
               icon={ShoppingBag}
-              delta="+11.4%"
+              delta={totalOrdersCount > 0 ? `${totalOrdersCount} placed` : "No orders yet"}
               subtext="Across all partner colleges"
             />
             <MetricCard
@@ -496,6 +512,12 @@ export function OwnerView() {
                   <span className="text-muted-foreground">Official Email:</span>
                   <span className="font-medium text-foreground">{selectedUnivDetail.contactEmail}</span>
                 </div>
+                <div className="flex justify-between items-center py-0.5">
+                  <span className="text-muted-foreground">Campus Code:</span>
+                  <span className="font-mono text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                    {selectedUnivDetail.campusCode || "Not generated"}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Partner Since:</span>
                   <span className="font-medium text-foreground">{selectedUnivDetail.joinedDate}</span>
@@ -532,16 +554,78 @@ export function OwnerView() {
         }
         confirmLabel={confirmAction?.type === "approve" ? "Approve Campus" : "Reject"}
         isDestructive={confirmAction?.type === "reject"}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!confirmAction) return;
           if (confirmAction.type === "approve") {
-            approveUniversityRequest(confirmAction.request.id);
+            const req = confirmAction.request;
+            setConfirmAction(null);
+            const res = await approveUniversityRequest(req.id);
+            if (res?.campusCode) {
+              setNewlyApprovedCode({ univName: req.university, code: res.campusCode });
+            }
           } else {
-            rejectUniversityRequest(confirmAction.request.id);
+            const req = confirmAction.request;
+            setConfirmAction(null);
+            await rejectUniversityRequest(req.id);
           }
-          setConfirmAction(null);
         }}
       />
+
+      {/* Campus Code Issued Success Modal */}
+      <Dialog
+        open={!!newlyApprovedCode}
+        onOpenChange={(open) => !open && setNewlyApprovedCode(null)}
+      >
+        <DialogContent className="max-w-md rounded-2xl p-6 shadow-card border border-border">
+          {newlyApprovedCode && (
+            <div className="space-y-4 text-center">
+              <div className="mx-auto grid size-12 place-items-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40">
+                <Check className="size-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-black text-foreground">
+                  Campus Approved & Activated
+                </DialogTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {newlyApprovedCode.univName} is now active on BUNK N BITE.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Unique Campus Code
+                </span>
+                <p className="mt-1 font-mono text-2xl font-black tracking-widest text-primary">
+                  {newlyApprovedCode.code}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Share this 6-character code with canteen owners so they can register their dining outlets for this campus.
+                </p>
+              </div>
+
+              <div className="flex justify-center gap-2 pt-2">
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(newlyApprovedCode.code);
+                    toast.success("Campus code copied to clipboard!");
+                  }}
+                  className="rounded-lg text-xs font-bold gap-1.5"
+                >
+                  <Copy className="size-3.5" />
+                  Copy Campus Code
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setNewlyApprovedCode(null)}
+                  className="rounded-lg text-xs font-semibold"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
