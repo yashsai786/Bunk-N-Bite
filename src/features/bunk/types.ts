@@ -10,6 +10,7 @@ export interface University {
   id: string;
   name: string;
   location: string;
+  campusCode?: string;
   status: "Active" | "Review" | "Inactive";
   canteens: number;
   students: string;
@@ -25,6 +26,8 @@ export interface UniversityRequest {
   email: string;
   phone: string;
   campusLocation: string;
+  city?: string;
+  state?: string;
   canteenCountEst: number;
   date: string;
   status: UniversityRequestStatus;
@@ -40,6 +43,7 @@ export interface Canteen {
   ownerEmail: string;
   phone: string;
   status: CanteenStatus;
+  operationalStatus?: "Active" | "Suspended";
   items: number;
   orders: number;
   openingHours: string;
@@ -49,6 +53,7 @@ export interface Canteen {
 export interface CanteenRequest {
   id: string;
   canteenName: string;
+  campusCode?: string;
   universityId: string;
   universityName: string;
   ownerName: string;
@@ -117,4 +122,49 @@ export interface StudentUser {
   ordersCount: number;
   status: "Active" | "Suspended";
   joinedDate: string;
+}
+
+export interface InstituteMembership {
+  universityId: string;
+  universityName?: string;
+  status: "active" | "suspended" | "removed";
+  studentId?: string;
+  department?: string;
+  addedAt: number;
+  addedBy: string;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
+export interface StudentInvitation {
+  id: string;
+  email: string;
+  name?: string;
+  studentId?: string;
+  department?: string;
+  universityId: string;
+  universityName: string;
+  status: "pending" | "accepted" | "expired" | "cancelled";
+  invitedAt: number;
+  invitedBy: string;
+  acceptedAt?: number;
+}
+
+export interface UniversityStudentMember {
+  id: string;
+  uid?: string;
+  email: string;
+  name: string;
+  studentId?: string;
+  department?: string;
+  universityId: string;
+  universityName?: string;
+  status: "active" | "suspended" | "removed" | "pending";
+  isInvitation?: boolean;
+  invitationId?: string;
+  ordersCount?: number;
+  addedAt: number;
+  addedBy: string;
+  updatedAt?: number;
+  updatedBy?: string;
 }
