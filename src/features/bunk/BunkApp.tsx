@@ -16,9 +16,16 @@ import { UniversityView } from "./views/UniversityView";
 import { VisitorView } from "./views/VisitorView";
 
 function SettingsView() {
-  const { role, activeTab, setActiveTab } = useBunk();
+  const { role, activeTab, setActiveTab, currentUser } = useBunk();
+  const [name, setName] = React.useState(currentUser?.displayName || "Campus User");
   const [notifications, setNotifications] = React.useState(true);
   const [smsAlerts, setSmsAlerts] = React.useState(true);
+
+  React.useEffect(() => {
+    if (currentUser?.displayName) {
+      setName(currentUser.displayName);
+    }
+  }, [currentUser]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +40,7 @@ function SettingsView() {
           Account Settings
         </h1>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Manage your personal information and campus communication preferences.
+          Manage your personal profile and campus meal notifications.
         </p>
       </div>
 
@@ -43,15 +50,8 @@ function SettingsView() {
             <Label htmlFor="set-name">Full Name</Label>
             <Input
               id="set-name"
-              defaultValue={
-                role === "owner"
-                  ? "Platform Administrator"
-                  : role === "university"
-                  ? "Riya Mehta"
-                  : role === "canteen"
-                  ? "Nikhil Desai"
-                  : "Aarav Shah"
-              }
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               className="mt-1 rounded-xl text-xs"
             />
           </div>
@@ -61,16 +61,10 @@ function SettingsView() {
             <Input
               id="set-email"
               type="email"
-              defaultValue={
-                role === "owner"
-                  ? "admin@bunknbite.in"
-                  : role === "university"
-                  ? "admin@ahduni.edu.in"
-                  : role === "canteen"
-                  ? "nikhil.desai@centralcafe.in"
-                  : "aarav.shah@ahduni.edu.in"
-              }
-              className="mt-1 rounded-xl text-xs"
+              value={currentUser?.email || "guest@bunknbite.in"}
+              readOnly
+              disabled
+              className="mt-1 rounded-xl text-xs opacity-75 cursor-not-allowed"
             />
           </div>
         </div>
@@ -113,7 +107,16 @@ function SettingsView() {
 }
 
 function BunkMainContent() {
-  const { role, activeTab } = useBunk();
+  const { role, activeTab, isAuthLoading } = useBunk();
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3">
+        <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <p className="text-xs font-semibold text-muted-foreground">Connecting to BUNK N BITE campus services...</p>
+      </div>
+    );
+  }
 
   if (activeTab === "Settings") {
     return <SettingsView />;

@@ -2,6 +2,8 @@ import React from "react";
 import {
   Building2,
   ChevronDown,
+  Database,
+  LogIn,
   LogOut,
   ShoppingBag,
   Store,
@@ -28,6 +30,8 @@ import { navByRole, roleLabels } from "../data";
 import { useBunk } from "../state";
 import type { Role } from "../types";
 import { CapsuleNavigation } from "./CapsuleNavigation";
+import { AuthModal } from "@/features/auth/components/AuthModal";
+import { ProfileCompletionModal } from "@/features/students/components/ProfileCompletionModal";
 
 export function Header() {
   const {
@@ -37,6 +41,13 @@ export function Header() {
     setActiveTab,
     cartCount,
     setIsCartOpen,
+    currentUser,
+    isAuthModalOpen,
+    setIsAuthModalOpen,
+    isProfileCompletionOpen,
+    setIsProfileCompletionOpen,
+    logout,
+    seedDatabase,
     universities,
     selectedUniversityId,
     setSelectedUniversityId,
@@ -46,9 +57,9 @@ export function Header() {
   } = useBunk();
 
   const activeUniv =
-    universities.find((u) => u.id === selectedUniversityId) || universities[0]!;
+    universities.find((u) => u.id === selectedUniversityId) || universities[0];
   const activeCanteen =
-    canteens.find((c) => c.id === selectedCanteenId) || canteens[0]!;
+    canteens.find((c) => c.id === selectedCanteenId) || canteens[0];
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl transition-all">
@@ -171,47 +182,49 @@ export function Header() {
                     )}
                   </DropdownMenuItem>
                 ))}
+                {universities.length === 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={seedDatabase}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-primary cursor-pointer"
+                    >
+                      <Database className="size-3.5" />
+                      <span>Seed Live Campus Catalog</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Profile Menu */}
-            {role !== "visitor" && (
+            {/* Auth / Profile Trigger */}
+            {currentUser ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
                     aria-label="User profile"
-                    className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground shadow-xs ring-1 ring-border transition-transform hover:scale-105"
+                    className="grid size-9 place-items-center rounded-full bg-primary/10 text-xs font-black text-primary shadow-xs ring-1 ring-primary/30 transition-transform hover:scale-105"
                   >
-                    {role === "owner"
-                      ? "OA"
-                      : role === "university"
-                      ? "UA"
-                      : role === "canteen"
-                      ? "CO"
-                      : "ST"}
+                    {currentUser.displayName.slice(0, 2).toUpperCase()}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-card">
                   <div className="px-2.5 py-2">
                     <p className="text-xs font-bold text-foreground">
-                      {role === "owner"
-                        ? "Platform Administrator"
-                        : role === "university"
-                        ? activeUniv.contactPerson
-                        : role === "canteen"
-                        ? activeCanteen.owner
-                        : "Aarav Shah"}
+                      {currentUser.displayName}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {role === "owner"
-                        ? "admin@bunknbite.in"
-                        : role === "university"
-                        ? activeUniv.contactEmail
-                        : role === "canteen"
-                        ? activeCanteen.ownerEmail
-                        : "aarav.shah@ahduni.edu.in"}
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {currentUser.email}
                     </p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-bold text-primary uppercase">
+                        {currentUser.role}
+                      </span>
+                      <span className="rounded-full bg-green-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-green-600">
+                        {currentUser.status}
+                      </span>
+                    </div>
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -219,18 +232,28 @@ export function Header() {
                     className="rounded-xl px-2.5 py-1.5 text-xs cursor-pointer"
                   >
                     <User className="mr-2 size-3.5 text-muted-foreground" />
-                    Profile Settings
+                    Account Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => setRole("visitor")}
+                    onClick={logout}
                     className="rounded-xl px-2.5 py-1.5 text-xs text-destructive cursor-pointer"
                   >
                     <LogOut className="mr-2 size-3.5" />
-                    Exit to Guest Flow
+                    Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="h-9 gap-1.5 rounded-full bg-primary px-3.5 text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90"
+              >
+                <LogIn className="size-3.5" />
+                <span>Sign In</span>
+              </Button>
             )}
           </div>
         </div>
@@ -245,6 +268,19 @@ export function Header() {
           />
         </div>
       </div>
+
+      {/* Firebase Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      {/* Passwordless Profile Completion Modal */}
+      <ProfileCompletionModal
+        user={currentUser}
+        isOpen={isProfileCompletionOpen}
+        onComplete={() => setIsProfileCompletionOpen(false)}
+      />
     </header>
   );
 }
