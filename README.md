@@ -1,16 +1,87 @@
-# Campus Bites
+# BUNK N BITE — Multi-Campus Dining & POS Ecosystem
 
-BUNK N BITE — PRODUCTION-READY UI/UX BUILD PROMPT
+## Firebase Production Backend & Database Architecture
 
-Build BUNK N BITE, a production-ready multi-campus university food ordering platform.
+BUNK N BITE is connected to Google Firebase, utilizing Firebase Authentication and Firebase Realtime Database for live menu synchronization, order dispatching, institutional onboarding, and multi-tenant access control.
 
-The application must feel like a real commercial SaaS + food-tech product, not a prototype, student project, generic admin dashboard, or template.
+### 1. Environment Variables Configuration
 
-The visual quality should be comparable to modern products such as Stripe, Linear, Vercel, Notion, Airbnb, and premium food-ordering applications — while maintaining its own BUNK N BITE identity.
+Copy `.env.example` to `.env` and provide your project credentials:
 
-The most important design principle:
+```dotenv
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_DATABASE_URL=https://your_project-default-rtdb.firebaseio.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 
-Professional. Minimal. Fast. Clear. Premium.
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_16_digit_app_password
+```
+
+> **Security Note:** `.env` is excluded from Git via `.gitignore`. Never commit private credentials or Service Account keys.
+
+### 2. Connected Database: Firebase Realtime Database
+
+- **Endpoint:** `https://bunknbite-default-rtdb.firebaseio.com/`
+- **Data Entities:**
+  - `/users/{uid}`: Database-backed UserProfiles (`role`, `status`, `universityId`, `canteenId`).
+  - `/universities/{univId}`: Approved partner universities.
+  - `/universityRequests/{reqId}`: Incoming campus onboarding requests reviewed by Owner Admin.
+  - `/canteens/{canteenId}`: Active dining counters and food outlets.
+  - `/canteenRequests/{reqId}`: Canteen registration applications reviewed by University Admin.
+  - `/foods/{foodId}`: Live menu items with real-time availability toggling.
+  - `/orders/{orderId}`: Real-time orders feed synchronized between students, visitors, canteen POS, and university monitors.
+
+### 3. Database Security Rules (`database.rules.json`)
+
+Deploy rules using the Firebase CLI:
+```bash
+firebase deploy --only database
+```
+The rules ensure:
+- Users cannot elevate their own role to `owner`, `university`, or `canteen`.
+- University onboarding requests can only be approved/rejected by Owner Admins.
+- Canteen onboarding requests can only be approved by University Admins matching the campus tenant.
+- Menu items can only be modified by authorized canteen owners.
+- Guest orders are permitted with validated visitor tokens.
+
+### 4. Authentication Providers
+
+Configured in Firebase Console:
+- **Email/Password Authentication** with secure client registration and password reset emails.
+- **Google Sign-In** with `GoogleAuthProvider` popup integration.
+
+### 5. Initial Owner Admin Provisioning
+
+Newly registered accounts default to the `student` role for security. To provision the initial platform Owner Admin:
+1. Register an account with your administrator email.
+2. In the Firebase Realtime Database Console under `/users/{your_uid}`, update:
+   ```json
+   {
+     "role": "owner",
+     "status": "active"
+   }
+   ```
+3. Upon reload, full platform governance, university request review queues, and global metrics become active.
+
+### 6. Development & Production Commands
+
+```bash
+# Run local development server
+npm run dev
+
+# TypeScript type check
+npx tsc --noEmit
+
+# Build production bundle (Client + SSR + Nitro worker)
+npm run build
+```
+
+---
 
 1. PRODUCT CONTEXT
 

@@ -15,13 +15,13 @@ export interface SendEmailPayload {
  * Send branded HTML email via Nodemailer using Gmail SMTP credentials from environment
  */
 export async function sendMailViaNodemailer(payload: SendEmailPayload) {
-  const user = process.env["SMTP_USER"] || "pricewise.noreply@gmail.com";
+  const user = process.env["SMTP_USER"] || "";
   const rawPass = process.env["SMTP_PASS"] || "";
   const pass = rawPass.replace(/\s+/g, "");
 
-  if (!pass) {
-    console.warn("Nodemailer: SMTP_PASS is missing in environment.");
-    return { success: false, error: "SMTP credentials not configured" };
+  if (!user || !pass) {
+    console.warn("Nodemailer: SMTP_USER or SMTP_PASS is missing in environment.");
+    return { success: false, error: "SMTP credentials not configured in .env" };
   }
 
   try {

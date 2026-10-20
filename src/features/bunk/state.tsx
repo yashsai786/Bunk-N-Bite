@@ -1,14 +1,55 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
 import {
-  initialCanteenRequests,
-  initialCanteens,
-  initialFoods,
-  initialOrders,
-  initialStudents,
-  initialUniversities,
-  initialUniversityRequests,
-} from "./data";
+  fetchUserProfile,
+  ensureUserProfile,
+  logoutUser,
+  completePasswordlessSignIn,
+  isPasswordlessEmailLink,
+  getFriendlyAuthErrorMessage,
+} from "@/features/auth/services/authService";
+import type { UserProfile, UniversityStudentMember } from "@/features/auth/types";
+import {
+  subscribeToUniversityMembers,
+  resolvePendingInvitationsForEmail,
+  migrateLegacyUserData,
+} from "@/features/students/services/studentService";
+import {
+  approveUniversityRequestInDb,
+  rejectUniversityRequestInDb,
+  subscribeToUniversities,
+  subscribeToUniversityRequests,
+} from "@/features/universities/services/universityService";
+import {
+  approveCanteenRequestInDb,
+  rejectCanteenRequestInDb,
+  subscribeToCanteens,
+  subscribeToCanteenRequests,
+  toggleCanteenOperationalStatusInDb,
+} from "@/features/canteens/services/canteenService";
+import {
+  createFoodItemInDb,
+  deleteFoodItemInDb,
+  subscribeToFoods,
+  toggleFoodAvailabilityInDb,
+  updateFoodItemInDb,
+} from "@/features/menu/services/menuService";
+import {
+  advanceOrderStatusInDb,
+  cancelOrderInDb,
+  createOrderInDb,
+  subscribeToOrders,
+  validateCartAndCalculateTotals,
+} from "@/features/orders/services/orderService";
+import { initializeDatabaseIfEmpty } from "@/lib/firebase/seed";
 import type {
   Canteen,
   CanteenRequest,
@@ -30,27 +71,39 @@ interface BunkContextType {
   setSelectedUniversityId: (id: string) => void;
   selectedCanteenId: string;
   setSelectedCanteenId: (id: string) => void;
-  
+
+  currentUser: UserProfile | null;
+  isAuthLoading: boolean;
+  isDbLoading: boolean;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  logout: () => Promise<void>;
+  seedDatabase: () => Promise<void>;
+
   universities: University[];
   universityRequests: UniversityRequest[];
-  approveUniversityRequest: (requestId: string) => void;
-  rejectUniversityRequest: (requestId: string) => void;
+  approveUniversityRequest: (requestId: string) => Promise<{ campusCode: string } | null>;
+  rejectUniversityRequest: (requestId: string) => Promise<void>;
 
   canteens: Canteen[];
   canteenRequests: CanteenRequest[];
-  approveCanteenRequest: (requestId: string) => void;
-  rejectCanteenRequest: (requestId: string) => void;
+  approveCanteenRequest: (requestId: string) => Promise<void>;
+  rejectCanteenRequest: (requestId: string) => Promise<void>;
+  toggleCanteenOperationalStatus: (canteenId: string, nextStatus: "Active" | "Suspended") => Promise<void>;
 
   foods: FoodItem[];
-  addFoodItem: (item: Omit<FoodItem, "id">) => void;
-  updateFoodItem: (id: number, updates: Partial<FoodItem>) => void;
-  toggleFoodAvailability: (id: number) => void;
+  addFoodItem: (item: Omit<FoodItem, "id">) => Promise<void>;
+  updateFoodItem: (id: number, updates: Partial<FoodItem>) => Promise<void>;
+  toggleFoodAvailability: (id: number) => Promise<void>;
 
   students: StudentUser[];
+  universityMembers: UniversityStudentMember[];
+  isProfileCompletionOpen: boolean;
+  setIsProfileCompletionOpen: (open: boolean) => void;
   orders: Order[];
   latestOrder: Order | null;
-  advanceOrderStatus: (orderId: string) => void;
-  cancelOrder: (orderId: string) => void;
+  advanceOrderStatus: (orderId: string) => Promise<void>;
+  cancelOrder: (orderId: string) => Promise<void>;
 
   cart: Record<number, number>;
   addToCart: (foodId: number) => void;
@@ -76,31 +129,177 @@ interface BunkContextType {
 
 const BunkContext = createContext<BunkContextType | null>(null);
 
-let orderCounter = 1049;
-
 export function BunkProvider({ children }: { children: React.ReactNode }) {
+  // Auth state
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // App & Navigation State
   const [role, setRoleState] = useState<Role>("student");
   const [activeTab, setActiveTab] = useState<string>("Home");
-  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("ahmedabad-univ");
-  const [selectedCanteenId, setSelectedCanteenId] = useState<string>("canteen-central");
+  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("");
+  const [selectedCanteenId, setSelectedCanteenId] = useState<string>("");
 
-  const [universities, setUniversities] = useState<University[]>(initialUniversities);
-  const [universityRequests, setUniversityRequests] = useState<UniversityRequest[]>(initialUniversityRequests);
+  // Database Entities (Realtime synced from Firebase)
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [universityRequests, setUniversityRequests] = useState<UniversityRequest[]>([]);
+  const [canteens, setCanteens] = useState<Canteen[]>([]);
+  const [canteenRequests, setCanteenRequests] = useState<CanteenRequest[]>([]);
+  const [foods, setFoods] = useState<FoodItem[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [latestOrder, setLatestOrder] = useState<Order | null>(null);
+  const [universityMembers, setUniversityMembers] = useState<UniversityStudentMember[]>([]);
+  const [isDbLoading, setIsDbLoading] = useState(true);
 
-  const [canteens, setCanteens] = useState<Canteen[]>(initialCanteens);
-  const [canteenRequests, setCanteenRequests] = useState<CanteenRequest[]>(initialCanteenRequests);
-
-  const [foods, setFoods] = useState<FoodItem[]>(initialFoods);
-  const [students] = useState<StudentUser[]>(initialStudents);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [latestOrder, setLatestOrder] = useState<Order | null>(initialOrders[0] ?? null);
-
-  const [cart, setCart] = useState<Record<number, number>>({ 1: 1, 3: 1 });
+  // Cart & UI State
+  const [cart, setCart] = useState<Record<number, number>>({});
   const [paymentState, setPaymentState] = useState<"idle" | "processing" | "success" | "failed">("idle");
   const [selectedFoodDetail, setSelectedFoodDetail] = useState<FoodItem | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activeOrderIdToTrack, setActiveOrderIdToTrack] = useState<string | null>(null);
+  const [isProfileCompletionOpen, setIsProfileCompletionOpen] = useState(false);
 
+  // Passwordless Email Link Auth Detection on Application Boot
+  useEffect(() => {
+    if (typeof window !== "undefined" && isPasswordlessEmailLink(window.location.href)) {
+      let email = window.localStorage.getItem("emailForSignIn");
+      if (!email) {
+        email = window.prompt("Please confirm your email address to complete passwordless sign-in:");
+      }
+      if (email && email.trim()) {
+        const cleanEmail = email.trim().toLowerCase();
+        completePasswordlessSignIn(cleanEmail, window.location.href)
+          .then(async (profile) => {
+            setCurrentUser(profile);
+            setRoleState(profile.role);
+            toast.success(`Welcome, ${profile.displayName || "Student"}! Signed in via email link.`);
+            await resolvePendingInvitationsForEmail(cleanEmail, profile.uid, profile.displayName);
+            if (!profile.isProfileComplete) {
+              setIsProfileCompletionOpen(true);
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+          })
+          .catch((err) => {
+            toast.error(getFriendlyAuthErrorMessage(err?.code || ""));
+          });
+      }
+    }
+  }, []);
+
+  // Auth Observer
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      setIsAuthLoading(true);
+      if (firebaseUser) {
+        try {
+          const profile = await fetchUserProfile(firebaseUser.uid);
+          if (profile) {
+            setCurrentUser(profile);
+            setRoleState(profile.role);
+            if (profile.universityId) setSelectedUniversityId(profile.universityId);
+            else if (profile.instituteMemberships) {
+              const activeMembership = Object.values(profile.instituteMemberships).find((m) => m.status === "active");
+              if (activeMembership?.universityId) setSelectedUniversityId(activeMembership.universityId);
+            }
+            if (profile.canteenId) setSelectedCanteenId(profile.canteenId);
+          } else {
+            const newProfile = await ensureUserProfile(firebaseUser);
+            setCurrentUser(newProfile);
+            setRoleState(newProfile.role);
+          }
+          // Non-blocking legacy data migration for existing users
+          migrateLegacyUserData(firebaseUser.uid).catch(() => {});
+        } catch (err) {
+          console.error("Auth state synchronization error:", err);
+        }
+      } else {
+        setCurrentUser(null);
+        setRoleState("student");
+      }
+      setIsAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Realtime University Members Listener for selectedUniversityId
+  useEffect(() => {
+    if (!selectedUniversityId) {
+      setUniversityMembers([]);
+      return;
+    }
+    const unsub = subscribeToUniversityMembers(
+      selectedUniversityId,
+      (members) => {
+        setUniversityMembers(members);
+      },
+      (err) => {
+        console.warn("Could not subscribe to university members:", err);
+      }
+    );
+    return () => unsub();
+  }, [selectedUniversityId]);
+
+  // Database Listeners
+  useEffect(() => {
+    let loadedCount = 0;
+    const checkLoaded = () => {
+      loadedCount += 1;
+      if (loadedCount >= 5) {
+        setIsDbLoading(false);
+      }
+    };
+
+    const unsubUniv = subscribeToUniversities((list) => {
+      setUniversities(list);
+      if (list.length > 0 && !list.find((u) => u.id === selectedUniversityId)) {
+        if (list[0]?.id) setSelectedUniversityId(list[0].id);
+      }
+      checkLoaded();
+    });
+
+    const unsubUnivReq = subscribeToUniversityRequests((reqs) => {
+      setUniversityRequests(reqs);
+      checkLoaded();
+    });
+
+    const unsubCanteens = subscribeToCanteens((list) => {
+      setCanteens(list);
+      if (list.length > 0 && !list.find((c) => c.id === selectedCanteenId)) {
+        if (list[0]?.id) setSelectedCanteenId(list[0].id);
+      }
+      checkLoaded();
+    });
+
+    const unsubCanteenReq = subscribeToCanteenRequests((reqs) => {
+      setCanteenRequests(reqs);
+      checkLoaded();
+    });
+
+    const unsubFoods = subscribeToFoods((items) => {
+      setFoods(items);
+      checkLoaded();
+    });
+
+    const unsubOrders = subscribeToOrders((orderList) => {
+      setOrders(orderList);
+      if (orderList.length > 0) {
+        setLatestOrder(orderList[0] || null);
+      }
+    });
+
+    return () => {
+      unsubUniv();
+      unsubUnivReq();
+      unsubCanteens();
+      unsubCanteenReq();
+      unsubFoods();
+      unsubOrders();
+    };
+  }, []);
+
+  // Sync role-based default tabs
   const setRole = (newRole: Role) => {
     setRoleState(newRole);
     if (newRole === "owner") setActiveTab("Overview");
@@ -110,103 +309,135 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     else if (newRole === "visitor") setActiveTab("Menu");
   };
 
-  const approveUniversityRequest = (requestId: string) => {
+  // Logout Handler
+  const logout = async () => {
+    await logoutUser();
+    setCurrentUser(null);
+    clearCart();
+    setRole("visitor");
+    toast.info("Logged out successfully");
+  };
+
+  // Seed database utility
+  const seedDatabase = async () => {
+    try {
+      const seeded = await initializeDatabaseIfEmpty();
+      if (seeded) {
+        toast.success("Database populated with initial campus records!");
+      } else {
+        toast.info("Database is already initialized.");
+      }
+    } catch (e: any) {
+      toast.error("Failed to seed database: " + e?.message);
+    }
+  };
+
+  // University Request Operations
+  const approveUniversityRequest = async (requestId: string): Promise<{ campusCode: string } | null> => {
+    const req = universityRequests.find((r) => r.id === requestId);
+    if (!req) return null;
+
+    try {
+      const campusCode = await approveUniversityRequestInDb(requestId, req);
+      toast.success(`${req.university} approved! Campus Code: ${campusCode}`, {
+        duration: 7000,
+      });
+      return { campusCode };
+    } catch (err: any) {
+      toast.error("Failed to approve request: " + err?.message);
+      return null;
+    }
+  };
+
+  const rejectUniversityRequest = async (requestId: string) => {
     const req = universityRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setUniversityRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: "Approved" } : r))
-    );
-
-    const newUniv: University = {
-      id: `univ-${Date.now()}`,
-      name: req.university,
-      location: req.campusLocation,
-      status: "Active",
-      canteens: req.canteenCountEst || 2,
-      students: "1,500",
-      contactPerson: req.requestedBy,
-      contactEmail: req.email,
-      joinedDate: "Today",
-    };
-
-    setUniversities((prev) => [newUniv, ...prev]);
-    toast.success(`${req.university} approved and activated`);
+    try {
+      await rejectUniversityRequestInDb(requestId);
+      toast.info(`University request from ${req.requestedBy} rejected`);
+    } catch (err: any) {
+      toast.error("Failed to reject request: " + err?.message);
+    }
   };
 
-  const rejectUniversityRequest = (requestId: string) => {
-    const req = universityRequests.find((r) => r.id === requestId);
-    if (!req) return;
-
-    setUniversityRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: "Rejected" } : r))
-    );
-    toast.error(`University request from ${req.requestedBy} rejected`);
-  };
-
-  const approveCanteenRequest = (requestId: string) => {
+  // Canteen Request Operations
+  const approveCanteenRequest = async (requestId: string) => {
     const req = canteenRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setCanteenRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: "Approved" } : r))
-    );
-
-    const newCanteen: Canteen = {
-      id: `canteen-${Date.now()}`,
-      name: req.canteenName,
-      universityId: req.universityId,
-      universityName: req.universityName,
-      owner: req.ownerName,
-      ownerEmail: req.email,
-      phone: req.phone,
-      status: "Open",
-      items: 12,
-      orders: 0,
-      openingHours: "08:30 AM – 08:00 PM",
-      counterLocation: "Food Court Counter 4",
-    };
-
-    setCanteens((prev) => [newCanteen, ...prev]);
-    toast.success(`Canteen "${req.canteenName}" approved for campus`);
+    try {
+      await approveCanteenRequestInDb(requestId, req);
+      toast.success(`Canteen "${req.canteenName}" approved for campus`);
+    } catch (err: any) {
+      toast.error("Failed to approve canteen: " + err?.message);
+    }
   };
 
-  const rejectCanteenRequest = (requestId: string) => {
+  const rejectCanteenRequest = async (requestId: string) => {
     const req = canteenRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setCanteenRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: "Rejected" } : r))
-    );
-    toast.error(`Canteen request "${req.canteenName}" rejected`);
+    try {
+      await rejectCanteenRequestInDb(requestId);
+      toast.info(`Canteen request "${req.canteenName}" rejected`);
+    } catch (err: any) {
+      toast.error("Failed to reject canteen: " + err?.message);
+    }
   };
 
-  const addFoodItem = (item: Omit<FoodItem, "id">) => {
-    const newId = Date.now();
-    const newItem: FoodItem = { ...item, id: newId };
-    setFoods((prev) => [newItem, ...prev]);
-    toast.success(`${item.name} added to menu`);
+  const toggleCanteenOperationalStatus = async (
+    canteenId: string,
+    nextStatus: "Active" | "Suspended"
+  ) => {
+    try {
+      await toggleCanteenOperationalStatusInDb(canteenId, nextStatus);
+      if (nextStatus === "Active") {
+        toast.success("Canteen activated and operational.");
+      } else {
+        toast.warning("Canteen suspended. Ordering disabled for students & visitors.");
+      }
+    } catch (err: any) {
+      toast.error("Failed to update operational status: " + err?.message);
+    }
   };
 
-  const updateFoodItem = (id: number, updates: Partial<FoodItem>) => {
-    setFoods((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
-    toast.success("Menu item updated");
+  // Menu Operations
+  const addFoodItem = async (item: Omit<FoodItem, "id">) => {
+    try {
+      await createFoodItemInDb(item);
+      toast.success(`${item.name} added to menu`);
+    } catch (err: any) {
+      toast.error("Failed to add menu item: " + err?.message);
+    }
   };
 
-  const toggleFoodAvailability = (id: number) => {
-    setFoods((prev) =>
-      prev.map((f) => {
-        if (f.id === id) {
-          const nextState = !f.available;
-          toast.info(`${f.name} is now ${nextState ? "Available" : "Unavailable"}`);
-          return { ...f, available: nextState };
-        }
-        return f;
-      })
-    );
+  const updateFoodItem = async (id: number, updates: Partial<FoodItem>) => {
+    try {
+      await updateFoodItemInDb(id, updates);
+      toast.success("Menu item updated");
+    } catch (err: any) {
+      toast.error("Failed to update item: " + err?.message);
+    }
   };
 
-  const advanceOrderStatus = (orderId: string) => {
+  const toggleFoodAvailability = async (id: number) => {
+    const food = foods.find((f) => f.id === id);
+    if (!food) return;
+    const nextState = !food.available;
+    try {
+      await toggleFoodAvailabilityInDb(id, nextState);
+      toast.info(`${food.name} is now ${nextState ? "Available" : "Unavailable"}`);
+    } catch (err: any) {
+      toast.error("Failed to toggle availability: " + err?.message);
+    }
+  };
+
+  // Order Operations
+  const advanceOrderStatus = async (orderId: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
+
     const nextStatusMap: Record<OrderStatus, OrderStatus> = {
       Placed: "Preparing",
       Preparing: "Ready",
@@ -215,48 +446,43 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
       Cancelled: "Cancelled",
     };
 
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === orderId) {
-          const next = nextStatusMap[o.status];
-          toast.success(`Order ${orderId} moved to ${next}`);
-          const updated = {
-            ...o,
-            status: next,
-            estimatedReadyAt:
-              next === "Preparing"
-                ? "5-8 mins"
-                : next === "Ready"
-                ? "Ready for Pickup"
-                : "Completed",
-          };
-          if (latestOrder?.id === orderId) {
-            setLatestOrder(updated);
-          }
-          return updated;
-        }
-        return o;
-      })
-    );
+    const next = nextStatusMap[order.status];
+    const estimatedTime =
+      next === "Preparing"
+        ? "5-8 mins"
+        : next === "Ready"
+        ? "Ready for Pickup"
+        : "Completed";
+
+    try {
+      await advanceOrderStatusInDb(orderId, next, estimatedTime);
+      toast.success(`Order ${orderId} status updated to ${next}`);
+    } catch (err: any) {
+      toast.error("Failed to update order status: " + err?.message);
+    }
   };
 
-  const cancelOrder = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === orderId) {
-          toast.error(`Order ${orderId} cancelled`);
-          const updated = { ...o, status: "Cancelled" as OrderStatus };
-          if (latestOrder?.id === orderId) setLatestOrder(updated);
-          return updated;
-        }
-        return o;
-      })
-    );
+  const cancelOrder = async (orderId: string) => {
+    try {
+      await cancelOrderInDb(orderId);
+      toast.error(`Order ${orderId} cancelled`);
+    } catch (err: any) {
+      toast.error("Failed to cancel order: " + err?.message);
+    }
   };
 
+  // Cart Operations
   const addToCart = (foodId: number) => {
     const food = foods.find((f) => f.id === foodId);
     if (!food) return;
+
+    // Check canteen operational status
+    const targetCanteen = canteens.find((c) => c.id === food.canteenId);
+    if (targetCanteen && (targetCanteen.operationalStatus === "Suspended" || targetCanteen.status === "Closed")) {
+      toast.error(`"${targetCanteen.name}" is temporarily suspended by campus administration.`);
+      return;
+    }
+
     if (!food.available) {
       toast.error(`${food.name} is currently sold out`);
       return;
@@ -312,6 +538,7 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     return cartSubtotal + cartTax;
   }, [cartSubtotal, cartTax]);
 
+  // Order Placement & Payment Workflow
   const processPaymentAndOrder = async (
     paymentMethod: "UPI" | "Cards" | "Net Banking"
   ): Promise<boolean> => {
@@ -322,40 +549,36 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
 
     setPaymentState("processing");
 
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    const activeCanteen = canteens.find((c) => c.id === selectedCanteenId) || canteens[0];
+    const activeUniv = universities.find((u) => u.id === selectedUniversityId) || universities[0];
 
-    orderCounter += 1;
-    const currentId = `#${orderCounter}`;
-    const token = `TK-${orderCounter % 100}`;
+    // Server/Database Price, Availability, and Canteen Operational Status Validation
+    const validation = validateCartAndCalculateTotals(cart, foods, activeCanteen);
+    if (!validation.isValid) {
+      setPaymentState("failed");
+      toast.error(validation.error || "Order validation failed. Please check cart items.");
+      return false;
+    }
 
-    const orderItems = Object.entries(cart).map(([id, qty]) => {
-      const food = foods.find((f) => f.id === Number(id))!;
-      return {
-        foodId: Number(id),
-        name: food.name,
-        quantity: qty,
-        price: food.price,
-      };
-    });
-
-    const activeCanteen = canteens.find((c) => c.id === selectedCanteenId) || canteens[0]!;
-    const activeUniv = universities.find((u) => u.id === selectedUniversityId) || universities[0]!;
+    const timestamp = Date.now();
+    const tokenNumber = `TK-${(timestamp % 900) + 100}`;
+    const orderId = `#${(timestamp % 9000) + 1000}`;
 
     const newOrder: Order = {
-      id: currentId,
-      tokenNumber: token,
-      customer: role === "visitor" ? "Guest Visitor" : "Aarav Shah",
+      id: orderId,
+      tokenNumber,
+      customer: currentUser?.displayName || (role === "visitor" ? "Guest Visitor" : "Student"),
       customerRole: role === "visitor" ? "Visitor" : "Student",
-      customerEmail: role === "visitor" ? undefined : "aarav.shah@ahduni.edu.in",
-      universityId: activeUniv.id,
-      universityName: activeUniv.name,
-      canteenId: activeCanteen.id,
-      canteenName: activeCanteen.name,
-      pickupCounter: activeCanteen.counterLocation,
-      items: orderItems,
-      subtotal: cartSubtotal,
-      platformTax: cartTax,
-      total: cartTotal,
+      customerEmail: currentUser?.email,
+      universityId: activeUniv?.id || "campus-univ",
+      universityName: activeUniv?.name || "Campus",
+      canteenId: activeCanteen?.id || "canteen-central",
+      canteenName: activeCanteen?.name || "Central Canteen",
+      pickupCounter: activeCanteen?.counterLocation || "Counter 1",
+      items: validation.orderItems,
+      subtotal: validation.subtotal,
+      platformTax: validation.platformTax,
+      total: validation.total,
       status: "Placed",
       paymentMethod,
       paymentStatus: "Paid",
@@ -363,14 +586,42 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
       estimatedReadyAt: "10-15 mins",
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
-    setLatestOrder(newOrder);
-    setActiveOrderIdToTrack(newOrder.id);
-    clearCart();
-    setPaymentState("success");
-    toast.success(`Payment verified! Order ${newOrder.id} confirmed.`);
-    return true;
+    try {
+      await createOrderInDb(newOrder);
+      setLatestOrder(newOrder);
+      setActiveOrderIdToTrack(newOrder.id);
+      clearCart();
+      setPaymentState("success");
+      toast.success(`Payment verified! Order ${newOrder.id} confirmed.`);
+      return true;
+    } catch (err: any) {
+      setPaymentState("failed");
+      toast.error("Failed to place order in database: " + err?.message);
+      return false;
+    }
   };
+
+  // Realtime Enrolled Students for University View
+  const students: StudentUser[] = useMemo(() => {
+    if (universityMembers.length > 0) {
+      return universityMembers.map((m) => ({
+        id: m.id,
+        studentId: m.studentId || "N/A",
+        name: m.name,
+        email: m.email,
+        universityId: m.universityId,
+        department: m.department || "General",
+        ordersCount: m.ordersCount || 0,
+        status: m.status === "suspended" ? "Suspended" : "Active",
+        joinedDate: new Date(m.addedAt).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }),
+      }));
+    }
+    return [];
+  }, [universityMembers]);
 
   return (
     <BunkContext.Provider
@@ -383,6 +634,13 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         setSelectedUniversityId,
         selectedCanteenId,
         setSelectedCanteenId,
+        currentUser,
+        isAuthLoading,
+        isDbLoading,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        logout,
+        seedDatabase,
         universities,
         universityRequests,
         approveUniversityRequest,
@@ -391,11 +649,15 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         canteenRequests,
         approveCanteenRequest,
         rejectCanteenRequest,
+        toggleCanteenOperationalStatus,
         foods,
         addFoodItem,
         updateFoodItem,
         toggleFoodAvailability,
         students,
+        universityMembers,
+        isProfileCompletionOpen,
+        setIsProfileCompletionOpen,
         orders,
         latestOrder,
         advanceOrderStatus,
