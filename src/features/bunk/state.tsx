@@ -136,10 +136,32 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // App & Navigation State
-  const [role, setRoleState] = useState<Role>("student");
-  const [activeTab, setActiveTab] = useState<string>("Home");
-  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("");
-  const [selectedCanteenId, setSelectedCanteenId] = useState<string>("");
+  // Role is strictly derived from verified Firebase Auth profile. Unauthenticated visitors default to "visitor".
+  const role: Role = currentUser?.role || "visitor";
+  const [activeTab, setActiveTab] = useState<string>("Menu");
+  const [selectedUniversityId, setSelectedUniversityIdState] = useState<string>("");
+  const [selectedCanteenId, setSelectedCanteenIdState] = useState<string>("");
+
+  // Guarded tenant setters enforcing role scoping
+  const setSelectedUniversityId = (id: string) => {
+    if (currentUser?.role === "university" && currentUser.universityId && id !== currentUser.universityId) {
+      toast.error("University Administrators are locked to their assigned campus.");
+      return;
+    }
+    if (currentUser?.role === "canteen" && currentUser.universityId && id !== currentUser.universityId) {
+      toast.error("Canteen Managers are locked to their assigned campus.");
+      return;
+    }
+    setSelectedUniversityIdState(id);
+  };
+
+  const setSelectedCanteenId = (id: string) => {
+    if (currentUser?.role === "canteen" && currentUser.canteenId && id !== currentUser.canteenId) {
+      toast.error("Canteen Managers are locked to their assigned canteen.");
+      return;
+    }
+    setSelectedCanteenIdState(id);
+  };
 
   // Database Entities (Realtime synced from Firebase)
   const [universities, setUniversities] = useState<University[]>([]);
@@ -172,7 +194,10 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         completePasswordlessSignIn(cleanEmail, window.location.href)
           .then(async (profile) => {
             setCurrentUser(profile);
-            setRoleState(profile.role);
+            if (profile.role === "student") setActiveTab("Home");
+            else if (profile.role === "visitor") setActiveTab("Menu");
+            else setActiveTab("Overview");
+
             toast.success(`Welcome, ${profile.displayName || "Student"}! Signed in via email link.`);
             await resolvePendingInvitationsForEmail(cleanEmail, profile.uid, profile.displayName);
             if (!profile.isProfileComplete) {
@@ -196,17 +221,22 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
           const profile = await fetchUserProfile(firebaseUser.uid);
           if (profile) {
             setCurrentUser(profile);
-            setRoleState(profile.role);
-            if (profile.universityId) setSelectedUniversityId(profile.universityId);
+            if (profile.role === "student") setActiveTab("Home");
+            else if (profile.role === "visitor") setActiveTab("Menu");
+            else setActiveTab("Overview");
+
+            if (profile.universityId) setSelectedUniversityIdState(profile.universityId);
             else if (profile.instituteMemberships) {
               const activeMembership = Object.values(profile.instituteMemberships).find((m) => m.status === "active");
-              if (activeMembership?.universityId) setSelectedUniversityId(activeMembership.universityId);
+              if (activeMembership?.universityId) setSelectedUniversityIdState(activeMembership.universityId);
             }
-            if (profile.canteenId) setSelectedCanteenId(profile.canteenId);
+            if (profile.canteenId) setSelectedCanteenIdState(profile.canteenId);
           } else {
             const newProfile = await ensureUserProfile(firebaseUser);
             setCurrentUser(newProfile);
-            setRoleState(newProfile.role);
+            if (newProfile.role === "student") setActiveTab("Home");
+            else if (newProfile.role === "visitor") setActiveTab("Menu");
+            else setActiveTab("Overview");
           }
           // Non-blocking legacy data migration only if owner admin (only owners have permission to scan /users)
           if (profile?.role === "owner") {
@@ -217,13 +247,36 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setCurrentUser(null);
-        setRoleState("student");
+        setActiveTab("Menu");
       }
       setIsAuthLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Synchronize tenant selection when authenticated user profile changes
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.role === "university" && currentUser.universityId) {
+        setSelectedUniversityIdState(currentUser.universityId);
+      } else if (currentUser.role === "canteen") {
+        if (currentUser.universityId) setSelectedUniversityIdState(currentUser.universityId);
+        if (currentUser.canteenId) setSelectedCanteenIdState(currentUser.canteenId);
+      } else if (currentUser.role === "student") {
+        if (currentUser.universityId) {
+          setSelectedUniversityIdState(currentUser.universityId);
+        } else if (currentUser.instituteMemberships) {
+          const activeMembership = Object.values(currentUser.instituteMemberships).find(
+            (m) => m.status === "active"
+          );
+          if (activeMembership?.universityId) {
+            setSelectedUniversityIdState(activeMembership.universityId);
+          }
+        }
+      }
+    }
+  }, [currentUser]);
 
   // Realtime University Members Listener for selectedUniversityId (only needed for university admin / owner)
   useEffect(() => {
@@ -259,8 +312,12 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
 
     const unsubUniv = subscribeToUniversities((list) => {
       setUniversities(list);
-      if (list.length > 0 && !list.find((u) => u.id === selectedUniversityId)) {
-        if (list[0]?.id) setSelectedUniversityId(list[0].id);
+      if (currentUser?.role === "university" && currentUser.universityId) {
+        setSelectedUniversityIdState(currentUser.universityId);
+      } else if (currentUser?.role === "canteen" && currentUser.universityId) {
+        setSelectedUniversityIdState(currentUser.universityId);
+      } else if (list.length > 0 && !list.find((u) => u.id === selectedUniversityId)) {
+        if (list[0]?.id) setSelectedUniversityIdState(list[0].id);
       }
       checkLoaded();
     });
@@ -272,8 +329,10 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
 
     const unsubCanteens = subscribeToCanteens((list) => {
       setCanteens(list);
-      if (list.length > 0 && !list.find((c) => c.id === selectedCanteenId)) {
-        if (list[0]?.id) setSelectedCanteenId(list[0].id);
+      if (currentUser?.role === "canteen" && currentUser.canteenId) {
+        setSelectedCanteenIdState(currentUser.canteenId);
+      } else if (list.length > 0 && !list.find((c) => c.id === selectedCanteenId)) {
+        if (list[0]?.id) setSelectedCanteenIdState(list[0].id);
       }
       checkLoaded();
     });
@@ -303,16 +362,11 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
       unsubFoods();
       unsubOrders();
     };
-  }, []);
+  }, [currentUser]);
 
-  // Sync role-based default tabs
-  const setRole = (newRole: Role) => {
-    setRoleState(newRole);
-    if (newRole === "owner") setActiveTab("Overview");
-    else if (newRole === "university") setActiveTab("Overview");
-    else if (newRole === "canteen") setActiveTab("Overview");
-    else if (newRole === "student") setActiveTab("Home");
-    else if (newRole === "visitor") setActiveTab("Menu");
+  // Role is locked to authenticated profile; setRole is kept for interface compatibility
+  const setRole = (_newRole: Role) => {
+    // Arbitrary role switching is disabled. Role is strictly derived from verified Firebase Auth profile.
   };
 
   // Logout Handler
@@ -320,7 +374,7 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     await logoutUser();
     setCurrentUser(null);
     clearCart();
-    setRole("visitor");
+    setActiveTab("Menu");
     toast.info("Logged out successfully");
   };
 

@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { CartDrawer } from "./components/CartDrawer";
 import { Header } from "./components/Header";
+import { PermissionState } from "./components/States";
 import { BunkProvider, useBunk } from "./state";
 import { CanteenView } from "./views/CanteenView";
 import { OwnerView } from "./views/OwnerView";
@@ -16,7 +17,7 @@ import { UniversityView } from "./views/UniversityView";
 import { VisitorView } from "./views/VisitorView";
 
 function SettingsView() {
-  const { role, activeTab, setActiveTab, currentUser } = useBunk();
+  const { role, activeTab, setActiveTab, currentUser, setIsAuthModalOpen } = useBunk();
   const [name, setName] = React.useState(currentUser?.displayName || "Campus User");
   const [notifications, setNotifications] = React.useState(true);
   const [smsAlerts, setSmsAlerts] = React.useState(true);
@@ -26,6 +27,26 @@ function SettingsView() {
       setName(currentUser.displayName);
     }
   }, [currentUser]);
+
+  if (!currentUser) {
+    return (
+      <div className="mx-auto max-w-md py-12">
+        <PermissionState
+          title="Authentication Required"
+          description="Please sign in to view and customize your campus account preferences."
+          action={
+            <Button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="rounded-full text-xs font-bold"
+            >
+              Sign In
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,9 +157,8 @@ function BunkMainContent() {
     case "student":
       return <StudentView />;
     case "visitor":
-      return <VisitorView />;
     default:
-      return <StudentView />;
+      return <VisitorView />;
   }
 }
 

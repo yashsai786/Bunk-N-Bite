@@ -1,8 +1,6 @@
 import React from "react";
 import {
   Building2,
-  ChevronDown,
-  Database,
   LogIn,
   LogOut,
   ShoppingBag,
@@ -15,7 +13,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -26,9 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { navByRole, roleLabels } from "../data";
 import { useBunk } from "../state";
-import type { Role } from "../types";
 import { CapsuleNavigation } from "./CapsuleNavigation";
 import { AuthModal } from "@/features/auth/components/AuthModal";
 import { ProfileCompletionModal } from "@/features/students/components/ProfileCompletionModal";
@@ -36,7 +33,6 @@ import { ProfileCompletionModal } from "@/features/students/components/ProfileCo
 export function Header() {
   const {
     role,
-    setRole,
     activeTab,
     setActiveTab,
     cartCount,
@@ -47,7 +43,6 @@ export function Header() {
     isProfileCompletionOpen,
     setIsProfileCompletionOpen,
     logout,
-    seedDatabase,
     universities,
     selectedUniversityId,
     setSelectedUniversityId,
@@ -92,8 +87,34 @@ export function Header() {
 
           {/* Right side controls */}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            {/* Context Dropdowns */}
+            {/* Scoped Context Badges & Selectors */}
             {role === "university" && (
+              <div className="flex h-9 items-center gap-1.5 rounded-full border border-border/70 bg-card px-3 text-xs font-semibold shadow-xs">
+                <Building2 className="size-3.5 text-primary" />
+                <span className="max-w-[140px] truncate sm:max-w-[200px]">
+                  {activeUniv?.name || currentUser?.universityId || "Assigned Campus"}
+                </span>
+              </div>
+            )}
+
+            {role === "canteen" && (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex h-9 items-center gap-1.5 rounded-full border border-border/70 bg-card px-3 text-xs font-semibold shadow-xs">
+                  <Building2 className="size-3.5 text-muted-foreground" />
+                  <span className="max-w-[120px] truncate">
+                    {activeUniv?.name || "Campus"}
+                  </span>
+                </div>
+                <div className="flex h-9 items-center gap-1.5 rounded-full border border-border/70 bg-card px-3 text-xs font-semibold shadow-xs">
+                  <Store className="size-3.5 text-primary" />
+                  <span className="max-w-[140px] truncate sm:max-w-[180px]">
+                    {activeCanteen?.name || currentUser?.canteenId || "Assigned Canteen"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {role === "owner" && (
               <Select
                 value={selectedUniversityId}
                 onValueChange={setSelectedUniversityId}
@@ -112,7 +133,7 @@ export function Header() {
               </Select>
             )}
 
-            {(role === "canteen" || role === "student" || role === "visitor") && (
+            {(role === "student" || role === "visitor") && (
               <Select
                 value={selectedCanteenId}
                 onValueChange={setSelectedCanteenId}
@@ -123,7 +144,7 @@ export function Header() {
                 </SelectTrigger>
                 <SelectContent align="end" className="rounded-2xl">
                   {canteens
-                    .filter((c) => c.universityId === selectedUniversityId)
+                    .filter((c) => !selectedUniversityId || c.universityId === selectedUniversityId)
                     .map((c) => (
                       <SelectItem key={c.id} value={c.id} className="text-xs">
                         {c.name}
@@ -150,52 +171,16 @@ export function Header() {
               </button>
             )}
 
-            {/* Role Switcher (Evaluation & Interactive Preview) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 rounded-full border-border/70 bg-card/80 px-3 text-xs font-semibold shadow-xs hover:bg-muted"
-                >
-                  <span className="size-2 rounded-full bg-primary animate-pulse" />
-                  <span className="max-w-[72px] truncate sm:max-w-none">
-                    {roleLabels[role]}
-                  </span>
-                  <ChevronDown className="size-3 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-card">
-                <DropdownMenuLabel className="px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                  Switch Demo Role
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(Object.keys(roleLabels) as Role[]).map((r) => (
-                  <DropdownMenuItem
-                    key={r}
-                    onClick={() => setRole(r)}
-                    className="flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs font-medium cursor-pointer"
-                  >
-                    <span>{roleLabels[r]}</span>
-                    {role === r && (
-                      <span className="size-1.5 rounded-full bg-primary" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-                {universities.length === 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={seedDatabase}
-                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-primary cursor-pointer"
-                    >
-                      <Database className="size-3.5" />
-                      <span>Seed Live Campus Catalog</span>
-                    </DropdownMenuItem>
-                  </>
+            {/* Verified Authenticated Role Badge */}
+            <div className="hidden sm:flex h-9 items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 text-xs font-semibold shadow-xs">
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  currentUser ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/50"
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              />
+              <span className="max-w-[120px] truncate">{roleLabels[role]}</span>
+            </div>
 
             {/* Auth / Profile Trigger */}
             {currentUser ? (

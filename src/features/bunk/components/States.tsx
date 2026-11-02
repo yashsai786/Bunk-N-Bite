@@ -78,10 +78,12 @@ export function ErrorState({
 export function PermissionState({
   title = "Access restricted",
   description = "You do not have the required permissions for this section.",
+  action,
   className,
 }: {
   title?: string;
   description?: string;
+  action?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -96,6 +98,7 @@ export function PermissionState({
       </div>
       <h3 className="mt-3 text-sm font-semibold text-foreground">{title}</h3>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">{description}</p>
+      {action && <div className="mt-4">{action}</div>}
     </div>
   );
 }
