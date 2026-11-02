@@ -15,6 +15,7 @@ import { StateGalleryView } from "./views/StateGalleryView";
 import { StudentView } from "./views/StudentView";
 import { UniversityView } from "./views/UniversityView";
 import { VisitorView } from "./views/VisitorView";
+import { StudentPendingView } from "@/features/students/views/StudentPendingView";
 
 function SettingsView() {
   const { role, activeTab, setActiveTab, currentUser, setIsAuthModalOpen } = useBunk();
@@ -128,7 +129,7 @@ function SettingsView() {
 }
 
 function BunkMainContent() {
-  const { role, activeTab, isAuthLoading } = useBunk();
+  const { role, activeTab, isAuthLoading, currentUser, enrolledUniversityIds } = useBunk();
 
   if (isAuthLoading) {
     return (
@@ -155,6 +156,9 @@ function BunkMainContent() {
     case "canteen":
       return <CanteenView />;
     case "student":
+      if (currentUser?.status === "pending" || enrolledUniversityIds.length === 0) {
+        return <StudentPendingView />;
+      }
       return <StudentView />;
     case "visitor":
     default:

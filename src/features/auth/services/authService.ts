@@ -307,13 +307,16 @@ export async function ensureUserProfile(
     };
   }
 
+  const isStudentWithoutApproval = assignedRole === "student" && !roleGrant && !assignedUnivId;
+  const profileStatus: "active" | "pending" | "suspended" = isStudentWithoutApproval ? "pending" : "active";
+
   const profile: UserProfile = {
     uid: firebaseUser.uid,
     displayName: firebaseUser.displayName || additionalData?.displayName || (roleGrant?.role === "university" ? "Campus Admin" : roleGrant?.role === "canteen" ? "Canteen Owner" : "Campus User"),
     email: email,
     photoURL: firebaseUser.photoURL || null,
     role: assignedRole,
-    status: "active",
+    status: profileStatus,
     isProfileComplete: Boolean(firebaseUser.displayName || additionalData?.displayName),
     createdAt: now,
     updatedAt: now,

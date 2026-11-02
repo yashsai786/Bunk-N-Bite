@@ -73,6 +73,9 @@ interface BunkContextType {
   setSelectedCanteenId: (id: string) => void;
 
   currentUser: UserProfile | null;
+  setCurrentUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
+  enrolledUniversityIds: string[];
+  studentUniversities: University[];
   isAuthLoading: boolean;
   isDbLoading: boolean;
   isAuthModalOpen: boolean;
@@ -142,6 +145,21 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
   const [selectedUniversityId, setSelectedUniversityIdState] = useState<string>("");
   const [selectedCanteenId, setSelectedCanteenIdState] = useState<string>("");
 
+  // Enrolled campus IDs vector for student multi-institute membership
+  const enrolledUniversityIds = useMemo(() => {
+    if (!currentUser) return [];
+    const ids = new Set<string>();
+    if (currentUser.instituteMemberships) {
+      for (const [id, m] of Object.entries(currentUser.instituteMemberships)) {
+        if (m.status === "active") ids.add(id);
+      }
+    }
+    if (currentUser.universityId && currentUser.status === "active") {
+      ids.add(currentUser.universityId);
+    }
+    return Array.from(ids);
+  }, [currentUser]);
+
   // Guarded tenant setters enforcing role scoping
   const setSelectedUniversityId = (id: string) => {
     if (currentUser?.role === "university" && currentUser.universityId && id !== currentUser.universityId) {
@@ -150,6 +168,10 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     }
     if (currentUser?.role === "canteen" && currentUser.universityId && id !== currentUser.universityId) {
       toast.error("Canteen Managers are locked to their assigned campus.");
+      return;
+    }
+    if (currentUser?.role === "student" && enrolledUniversityIds.length > 0 && !enrolledUniversityIds.includes(id)) {
+      toast.error("You are only permitted to access your enrolled campus.");
       return;
     }
     setSelectedUniversityIdState(id);
@@ -253,6 +275,12 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Filtered universities strictly reflecting student's enrolled campus vector
+  const studentUniversities = useMemo(() => {
+    if (role !== "student") return universities;
+    return universities.filter((u) => enrolledUniversityIds.includes(u.id));
+  }, [role, universities, enrolledUniversityIds]);
+
   // Synchronize tenant selection when authenticated user profile changes
   useEffect(() => {
     if (currentUser) {
@@ -262,19 +290,32 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         if (currentUser.universityId) setSelectedUniversityIdState(currentUser.universityId);
         if (currentUser.canteenId) setSelectedCanteenIdState(currentUser.canteenId);
       } else if (currentUser.role === "student") {
-        if (currentUser.universityId) {
-          setSelectedUniversityIdState(currentUser.universityId);
-        } else if (currentUser.instituteMemberships) {
-          const activeMembership = Object.values(currentUser.instituteMemberships).find(
-            (m) => m.status === "active"
-          );
-          if (activeMembership?.universityId) {
-            setSelectedUniversityIdState(activeMembership.universityId);
+        if (enrolledUniversityIds.length > 0) {
+          if (!enrolledUniversityIds.includes(selectedUniversityId)) {
+            setSelectedUniversityIdState(enrolledUniversityIds[0] || "");
           }
+        } else {
+          setSelectedUniversityIdState("");
         }
       }
     }
-  }, [currentUser]);
+  }, [currentUser, enrolledUniversityIds, selectedUniversityId]);
+
+  // Synchronize canteen selection whenever active university changes
+  useEffect(() => {
+    if (selectedUniversityId) {
+      const validCanteens = canteens.filter((c) => c.universityId === selectedUniversityId);
+      if (validCanteens.length > 0) {
+        if (!validCanteens.some((c) => c.id === selectedCanteenId)) {
+          if (validCanteens[0]?.id) setSelectedCanteenIdState(validCanteens[0].id);
+        }
+      } else {
+        setSelectedCanteenIdState("");
+      }
+    } else {
+      setSelectedCanteenIdState("");
+    }
+  }, [selectedUniversityId, canteens, selectedCanteenId]);
 
   // Realtime University Members Listener for selectedUniversityId (only needed for university admin / owner)
   useEffect(() => {
@@ -314,8 +355,15 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         setSelectedUniversityIdState(currentUser.universityId);
       } else if (currentUser?.role === "canteen" && currentUser.universityId) {
         setSelectedUniversityIdState(currentUser.universityId);
-      } else if (list.length > 0 && !list.find((u) => u.id === selectedUniversityId)) {
-        if (list[0]?.id) setSelectedUniversityIdState(list[0].id);
+      } else if (currentUser?.role === "student") {
+        const enrolled = currentUser.universityId
+          ? [currentUser.universityId]
+          : Object.keys(currentUser.instituteMemberships || {}).filter(
+              (id) => currentUser.instituteMemberships?.[id]?.status === "active"
+            );
+        if (enrolled.length > 0 && !enrolled.includes(selectedUniversityId)) {
+          setSelectedUniversityIdState(enrolled[0] || "");
+        }
       }
       checkLoaded();
     });
@@ -693,6 +741,9 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
         selectedCanteenId,
         setSelectedCanteenId,
         currentUser,
+        setCurrentUser,
+        enrolledUniversityIds,
+        studentUniversities,
         isAuthLoading,
         isDbLoading,
         isAuthModalOpen,

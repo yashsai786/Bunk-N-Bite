@@ -22,6 +22,8 @@ import {
   queueWelcomeExistingEmail,
   queueInviteNewEmail,
 } from "@/features/mail/services/mailService";
+import { resolveCampusCode } from "@/features/universities/services/universityService";
+import { cleanForFirebase } from "@/features/auth/services/authService";
 
 /**
  * Subscribe to Realtime university student memberships
@@ -503,4 +505,59 @@ export async function migrateLegacyUserData(
     console.error("Legacy migration error:", err);
     return { migratedCount: 0, scannedCount: 0 };
   }
+}
+
+/**
+ * Redeem an official 6-character Campus Code to instantly link student account to a campus
+ */
+export async function redeemStudentCampusCode(
+  campusCode: string,
+  user: UserProfile
+): Promise<{ success: boolean; universityId: string; universityName: string }> {
+  const normalized = campusCode.trim().toUpperCase();
+  if (!normalized) throw new Error("Please enter a valid campus code.");
+
+  const campus = await resolveCampusCode(normalized);
+  if (!campus) {
+    throw new Error("Invalid or unrecognised campus code. Please check with your campus administrator.");
+  }
+
+  const now = Date.now();
+  const membership: InstituteMembership = {
+    universityId: campus.universityId,
+    universityName: campus.universityName,
+    status: "active",
+    addedAt: now,
+    addedBy: "campus_code_redemption",
+  };
+
+  // 1. Update user profile
+  await update(ref(db, `users/${user.uid}`), cleanForFirebase({
+    status: "active",
+    universityId: campus.universityId,
+    universityName: campus.universityName,
+    updatedAt: now,
+  }));
+  await update(ref(db, `users/${user.uid}/instituteMemberships/${campus.universityId}`), cleanForFirebase(membership));
+
+  // 2. Add to universityMemberships index
+  const memberRecord: UniversityStudentMember = {
+    id: user.uid,
+    uid: user.uid,
+    email: user.email,
+    name: user.displayName || user.email.split("@")[0] || "Student",
+    universityId: campus.universityId,
+    universityName: campus.universityName,
+    status: "active",
+    isInvitation: false,
+    addedAt: now,
+    addedBy: "campus_code_redemption",
+  };
+  await set(ref(db, `universityMemberships/${campus.universityId}/${user.uid}`), cleanForFirebase(memberRecord));
+
+  return {
+    success: true,
+    universityId: campus.universityId,
+    universityName: campus.universityName,
+  };
 }

@@ -44,6 +44,8 @@ export function Header() {
     setIsProfileCompletionOpen,
     logout,
     universities,
+    studentUniversities,
+    enrolledUniversityIds,
     selectedUniversityId,
     setSelectedUniversityId,
     canteens,
@@ -133,25 +135,111 @@ export function Header() {
               </Select>
             )}
 
-            {(role === "student" || role === "visitor") && (
-              <Select
-                value={selectedCanteenId}
-                onValueChange={setSelectedCanteenId}
-              >
-                <SelectTrigger className="h-9 w-[130px] sm:w-[160px] rounded-full border-border/70 bg-card text-xs font-semibold shadow-xs">
-                  <Store className="mr-1.5 size-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="Canteen" />
-                </SelectTrigger>
-                <SelectContent align="end" className="rounded-2xl">
-                  {canteens
-                    .filter((c) => !selectedUniversityId || c.universityId === selectedUniversityId)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.name}
+            {/* Student Scoped Campus & Canteen Selectors */}
+            {role === "student" && (
+              <>
+                {currentUser?.status === "pending" || enrolledUniversityIds.length === 0 ? (
+                  <div className="flex h-9 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-500/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-400 shadow-xs">
+                    <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span>Awaiting Campus Approval</span>
+                  </div>
+                ) : (
+                  <>
+                    {studentUniversities.length > 1 ? (
+                      <Select
+                        value={selectedUniversityId}
+                        onValueChange={setSelectedUniversityId}
+                      >
+                        <SelectTrigger className="h-9 w-[130px] sm:w-[160px] rounded-full border-border/70 bg-card text-xs font-semibold shadow-xs">
+                          <Building2 className="mr-1.5 size-3.5 text-muted-foreground" />
+                          <SelectValue placeholder="My Campus" />
+                        </SelectTrigger>
+                        <SelectContent align="end" className="rounded-2xl">
+                          {studentUniversities.map((u) => (
+                            <SelectItem key={u.id} value={u.id} className="text-xs">
+                              {u.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="hidden sm:flex h-9 items-center gap-1.5 rounded-full border border-border/70 bg-card px-3 text-xs font-semibold shadow-xs">
+                        <Building2 className="size-3.5 text-primary" />
+                        <span className="max-w-[140px] truncate sm:max-w-[180px]">
+                          {studentUniversities[0]?.name || activeUniv?.name || "My Campus"}
+                        </span>
+                      </div>
+                    )}
+
+                    <Select
+                      value={selectedCanteenId}
+                      onValueChange={setSelectedCanteenId}
+                    >
+                      <SelectTrigger className="h-9 w-[130px] sm:w-[160px] rounded-full border-border/70 bg-card text-xs font-semibold shadow-xs">
+                        <Store className="mr-1.5 size-3.5 text-muted-foreground" />
+                        <SelectValue placeholder="Canteen" />
+                      </SelectTrigger>
+                      <SelectContent align="end" className="rounded-2xl">
+                        {canteens
+                          .filter((c) => c.universityId === selectedUniversityId)
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Visitor Progressive Selectors: Campus First -> Then Canteen */}
+            {role === "visitor" && (
+              <>
+                <Select
+                  value={selectedUniversityId}
+                  onValueChange={setSelectedUniversityId}
+                >
+                  <SelectTrigger className="h-9 w-[130px] sm:w-[165px] rounded-full border-border/70 bg-card text-xs font-semibold shadow-xs">
+                    <Building2 className="mr-1.5 size-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Select Campus" />
+                  </SelectTrigger>
+                  <SelectContent align="end" className="rounded-2xl">
+                    {universities.map((u) => (
+                      <SelectItem key={u.id} value={u.id} className="text-xs">
+                        {u.name}
                       </SelectItem>
                     ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+
+                {selectedUniversityId ? (
+                  <Select
+                    value={selectedCanteenId}
+                    onValueChange={setSelectedCanteenId}
+                  >
+                    <SelectTrigger className="h-9 w-[130px] sm:w-[160px] rounded-full border-border/70 bg-card text-xs font-semibold shadow-xs">
+                      <Store className="mr-1.5 size-3.5 text-muted-foreground" />
+                      <SelectValue placeholder="Select Canteen" />
+                    </SelectTrigger>
+                    <SelectContent align="end" className="rounded-2xl">
+                      {canteens
+                        .filter((c) => c.universityId === selectedUniversityId)
+                        .map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="hidden sm:flex h-9 items-center gap-1.5 rounded-full border border-dashed border-border/70 bg-card/60 px-3 text-[11px] font-medium text-muted-foreground">
+                    <Store className="size-3.5 opacity-60" />
+                    <span>Pick Campus First</span>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Cart Button (Student / Visitor) */}

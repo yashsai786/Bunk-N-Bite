@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
+  Building2,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -49,6 +50,7 @@ export function StudentView() {
     selectedCanteenId,
     setSelectedCanteenId,
     universities,
+    studentUniversities,
     canteens,
     foods,
     cart,
@@ -80,12 +82,13 @@ export function StudentView() {
     canteens.find((c) => c.id === selectedCanteenId) || canteens[0];
 
   const filteredFoods = foods.filter((f) => {
+    const matchCanteen = !selectedCanteenId || f.canteenId === selectedCanteenId;
     const matchCategory =
       categoryFilter === "All" || f.category === categoryFilter;
     const matchSearch = f.name
       .toLowerCase()
       .includes(foodSearch.toLowerCase());
-    return matchCategory && matchSearch;
+    return matchCanteen && matchCategory && matchSearch;
   });
 
   const studentOrders = orders.filter((o) => o.customerRole === "Student");
@@ -124,21 +127,31 @@ export function StudentView() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={selectedUniversityId}
-                onValueChange={setSelectedUniversityId}
-              >
-                <SelectTrigger className="h-8.5 w-44 rounded-lg border-border/70 bg-card text-xs font-semibold shadow-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {universities.map((u) => (
-                    <SelectItem key={u.id} value={u.id} className="text-xs">
-                      {u.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {studentUniversities.length > 1 ? (
+                <Select
+                  value={selectedUniversityId}
+                  onValueChange={setSelectedUniversityId}
+                >
+                  <SelectTrigger className="h-8.5 w-44 rounded-lg border-border/70 bg-card text-xs font-semibold shadow-xs">
+                    <Building2 className="mr-1.5 size-3.5 text-muted-foreground" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {studentUniversities.map((u) => (
+                      <SelectItem key={u.id} value={u.id} className="text-xs">
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex h-8.5 items-center gap-1.5 rounded-lg border border-border/70 bg-card px-2.5 text-xs font-semibold shadow-xs">
+                  <Building2 className="size-3.5 text-primary" />
+                  <span className="max-w-[160px] truncate">
+                    {studentUniversities[0]?.name || activeUniv?.name || "Enrolled Campus"}
+                  </span>
+                </div>
+              )}
 
               <Select
                 value={selectedCanteenId}

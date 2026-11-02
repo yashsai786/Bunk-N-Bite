@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
+  Building2,
   CheckCircle2,
+  ChevronRight,
   Clock,
   CreditCard,
   Lock,
@@ -12,6 +14,7 @@ import {
   Receipt,
   Search,
   ShoppingBag,
+  Sparkles,
   Store,
   Trash2,
 } from "lucide-react";
@@ -29,7 +32,9 @@ export function VisitorView() {
     activeTab,
     setActiveTab,
     selectedUniversityId,
+    setSelectedUniversityId,
     selectedCanteenId,
+    setSelectedCanteenId,
     universities,
     canteens,
     foods,
@@ -57,12 +62,15 @@ export function VisitorView() {
   const activeCanteen =
     canteens.find((c) => c.id === selectedCanteenId) || canteens[0];
 
+  const campusCanteens = canteens.filter((c) => c.universityId === selectedUniversityId);
+
   const filteredFoods = foods.filter((f) => {
+    const matchCanteen = !selectedCanteenId || f.canteenId === selectedCanteenId;
     const matchCat = categoryFilter === "All" || f.category === categoryFilter;
     const matchSearch = f.name
       .toLowerCase()
       .includes(visitorSearch.toLowerCase());
-    return matchCat && matchSearch;
+    return matchCanteen && matchCat && matchSearch;
   });
 
   const cartEntries = Object.entries(cart)
@@ -85,46 +93,131 @@ export function VisitorView() {
       {/* 1. VISITOR MENU TAB */}
       {(activeTab === "Menu" || activeTab === "Cart") && (
         <div className="space-y-4">
-          {/* Fast QR Established Context Banner */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-lg bg-muted text-foreground shrink-0 border border-border/80">
-                <QrCode className="size-5" />
-              </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success uppercase tracking-wider">
-                  <span className="size-1.5 rounded-full bg-success" />
-                  QR Scan Verified
-                </span>
-                <h2 className="text-sm font-bold text-foreground sm:text-base">
-                  {activeCanteen?.name || "Campus Canteen"}
-                </h2>
-                <p className="text-[11px] text-muted-foreground">
-                  {activeCanteen?.counterLocation || "Counter"} • {activeUniv?.name || "Campus"}
+          {!selectedUniversityId ? (
+            /* Step 1: Campus Selection Screen */
+            <div className="space-y-6 py-6">
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                  <Building2 className="size-3.5" />
+                  <span>Step 1 of 2: Select Campus</span>
+                </div>
+                <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                  Choose Your Campus Food Court
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Select your university campus to explore available canteens, daily specials, and place an order.
                 </p>
               </div>
-            </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsCartOpen(true)}
-              className="rounded-lg text-xs font-bold gap-1.5 shadow-xs h-8.5 px-3"
-            >
-              <ShoppingBag className="size-3.5" />
-              Tray ({cartCount})
-            </Button>
-          </div>
-
-          {/* Suspended Alert Banner for Visitor */}
-          {(activeCanteen?.operationalStatus === "Suspended" || activeCanteen?.status === "Closed") && (
-            <div className="rounded-xl border border-rose-300 bg-rose-50/70 p-3.5 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 flex items-center gap-2.5 shadow-2xs">
-              <AlertTriangle className="size-4 shrink-0 text-rose-600" />
-              <span>
-                <strong>Canteen Temporarily Suspended:</strong> This dining outlet is not accepting new orders at this time.
-              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto pt-2">
+                {universities.map((u) => {
+                  const uCanteens = canteens.filter((c) => c.universityId === u.id);
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        setSelectedUniversityId(u.id);
+                        if (uCanteens.length > 0 && uCanteens[0]?.id) setSelectedCanteenId(uCanteens[0].id);
+                      }}
+                      className="group cursor-pointer rounded-2xl border border-border/80 bg-card p-5 shadow-xs transition-all hover:border-primary/60 hover:shadow-card hover:-translate-y-0.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          <Building2 className="size-5" />
+                        </div>
+                        <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                          {uCanteens.length} {uCanteens.length === 1 ? "Canteen" : "Canteens"}
+                        </span>
+                      </div>
+                      <h3 className="mt-4 text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                        {u.name}
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        {u.location || "Campus Location"}
+                      </p>
+                      <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs font-semibold text-primary">
+                        <span>Explore Canteens</span>
+                        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Context Header with Campus & Canteen Selection */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary shrink-0 border border-primary/20">
+                    <Building2 className="size-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                        Campus
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUniversityId("")}
+                        className="text-[10px] text-muted-foreground underline hover:text-primary transition-colors"
+                      >
+                        (Change Campus)
+                      </button>
+                    </div>
+                    <h2 className="text-sm font-bold text-foreground sm:text-base">
+                      {activeUniv?.name || "Selected Campus"}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Step 2: Canteen Switcher Pills */}
+                {campusCanteens.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground mr-1">
+                      Canteen:
+                    </span>
+                    {campusCanteens.map((c) => {
+                      const isSelected = c.id === selectedCanteenId;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedCanteenId(c.id)}
+                          className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground shadow-xs"
+                              : "border border-border/80 bg-card hover:bg-muted text-foreground"
+                          }`}
+                        >
+                          <Store className="size-3" />
+                          <span>{c.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCartOpen(true)}
+                  className="rounded-lg text-xs font-bold gap-1.5 shadow-xs h-8.5 px-3 self-end md:self-center"
+                >
+                  <ShoppingBag className="size-3.5" />
+                  Tray ({cartCount})
+                </Button>
+              </div>
+
+              {/* Suspended Alert Banner for Visitor */}
+              {(activeCanteen?.operationalStatus === "Suspended" || activeCanteen?.status === "Closed") && (
+                <div className="rounded-xl border border-rose-300 bg-rose-50/70 p-3.5 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 flex items-center gap-2.5 shadow-2xs">
+                  <AlertTriangle className="size-4 shrink-0 text-rose-600" />
+                  <span>
+                    <strong>Canteen Temporarily Suspended:</strong> This dining outlet is not accepting new orders at this time.
+                  </span>
+                </div>
+              )}
 
           {/* Desktop Two-Panel Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -308,6 +401,8 @@ export function VisitorView() {
                 </Button>
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       )}

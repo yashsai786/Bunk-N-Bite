@@ -16,7 +16,7 @@
       "$universityId": {
         ".read": "auth != null",
         "$memberKey": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || (root.child('users').child(auth.uid).child('role').val() === 'university' && (root.child('users').child(auth.uid).child('universityId').val() === $universityId || root.child('users').child(auth.uid).child('instituteMemberships').child($universityId).exists())))"
+          ".write": "auth != null && (auth.uid === $memberKey || root.child('users').child(auth.uid).child('role').val() === 'owner' || (root.child('users').child(auth.uid).child('role').val() === 'university' && (root.child('users').child(auth.uid).child('universityId').val() === $universityId || root.child('users').child(auth.uid).child('instituteMemberships').child($universityId).exists())))"
         }
       }
     },
