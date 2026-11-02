@@ -9,6 +9,8 @@ import {
 } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { University, UniversityRequest } from "@/features/bunk/types";
+import { encodeEmailKey, cleanForFirebase } from "@/features/auth/services/authService";
+import { findUserByEmail } from "@/features/students/services/studentService";
 
 /**
  * Realtime listener for Universities
@@ -173,11 +175,13 @@ export async function approveUniversityRequestInDb(
 ): Promise<string> {
   const univId = `univ-${Date.now()}`;
   const campusCode = await reserveUniqueCampusCode(univId, request.university);
+  const cleanEmail = request.email.trim().toLowerCase();
 
-  // 1. Update request status with the generated campus code
+  // 1. Update request status with the generated campus code and assigned universityId
   await update(ref(db, `universityRequests/${requestId}`), {
     status: "Approved",
     campusCode,
+    universityId: univId,
   });
 
   // 2. Create the university record
@@ -190,7 +194,7 @@ export async function approveUniversityRequestInDb(
     canteens: request.canteenCountEst || 1,
     students: "1,000",
     contactPerson: request.requestedBy,
-    contactEmail: request.email,
+    contactEmail: cleanEmail,
     joinedDate: new Date().toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -198,7 +202,36 @@ export async function approveUniversityRequestInDb(
     }),
   };
 
-  await set(ref(db, `universities/${univId}`), newUniv);
+  await set(ref(db, `universities/${univId}`), cleanForFirebase(newUniv));
+
+  // 3. Grant pre-approved University Admin role so subsequent logins immediately inherit this role
+  try {
+    await set(ref(db, `preapprovedRoles/${encodeEmailKey(cleanEmail)}`), {
+      email: cleanEmail,
+      role: "university",
+      universityId: univId,
+      universityName: request.university,
+      grantedAt: Date.now(),
+    });
+  } catch (err) {
+    console.warn("Could not write to preapprovedRoles:", err);
+  }
+
+  // 4. If the user already has an existing account in the users table, upgrade them immediately
+  try {
+    const existingUser = await findUserByEmail(cleanEmail);
+    if (existingUser) {
+      await update(ref(db, `users/${existingUser.uid}`), cleanForFirebase({
+        role: "university",
+        universityId: univId,
+        universityName: request.university,
+        updatedAt: Date.now(),
+      }));
+    }
+  } catch (err) {
+    console.warn("Could not check/upgrade existing user in users table:", err);
+  }
+
   return campusCode;
 }
 

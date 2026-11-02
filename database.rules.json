@@ -45,6 +45,12 @@
         ".write": "!data.exists() || (auth != null && root.child('users').child(auth.uid).child('role').val() === 'owner')"
       }
     },
+    "preapprovedRoles": {
+      ".read": true,
+      "$emailKey": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'owner' || root.child('users').child(auth.uid).child('role').val() === 'university')"
+      }
+    },
     "campusCodes": {
       ".read": true,
       "$code": {

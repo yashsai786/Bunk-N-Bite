@@ -9,6 +9,8 @@ import {
 } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { Canteen, CanteenRequest } from "@/features/bunk/types";
+import { encodeEmailKey, cleanForFirebase } from "@/features/auth/services/authService";
+import { findUserByEmail } from "@/features/students/services/studentService";
 
 /**
  * Realtime listener for Canteens
@@ -143,20 +145,23 @@ export async function approveCanteenRequestInDb(
   requestId: string,
   request: CanteenRequest
 ): Promise<void> {
-  // 1. Update request status
+  const canteenId = `canteen-${Date.now()}`;
+  const cleanEmail = request.email.trim().toLowerCase();
+
+  // 1. Update request status with assigned canteenId
   await update(ref(db, `canteenRequests/${requestId}`), {
     status: "Approved",
+    canteenId,
   });
 
   // 2. Create the canteen record
-  const canteenId = `canteen-${Date.now()}`;
   const newCanteen: Canteen = {
     id: canteenId,
     name: request.canteenName,
     universityId: request.universityId,
     universityName: request.universityName,
     owner: request.ownerName,
-    ownerEmail: request.email,
+    ownerEmail: cleanEmail,
     phone: request.phone,
     status: "Open",
     operationalStatus: "Active",
@@ -166,7 +171,39 @@ export async function approveCanteenRequestInDb(
     counterLocation: "Food Court Counter",
   };
 
-  await set(ref(db, `canteens/${canteenId}`), newCanteen);
+  await set(ref(db, `canteens/${canteenId}`), cleanForFirebase(newCanteen));
+
+  // 3. Grant pre-approved Canteen Owner role
+  try {
+    await set(ref(db, `preapprovedRoles/${encodeEmailKey(cleanEmail)}`), {
+      email: cleanEmail,
+      role: "canteen",
+      canteenId,
+      canteenName: request.canteenName,
+      universityId: request.universityId,
+      universityName: request.universityName,
+      grantedAt: Date.now(),
+    });
+  } catch (err) {
+    console.warn("Could not write to preapprovedRoles for canteen:", err);
+  }
+
+  // 4. Upgrade existing user in users table if they already registered
+  try {
+    const existingUser = await findUserByEmail(cleanEmail);
+    if (existingUser) {
+      await update(ref(db, `users/${existingUser.uid}`), cleanForFirebase({
+        role: "canteen",
+        canteenId,
+        canteenName: request.canteenName,
+        universityId: request.universityId,
+        universityName: request.universityName,
+        updatedAt: Date.now(),
+      }));
+    }
+  } catch (err) {
+    console.warn("Could not check/upgrade existing user in users table:", err);
+  }
 }
 
 /**

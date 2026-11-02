@@ -218,7 +218,11 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
       setIsAuthLoading(true);
       if (firebaseUser) {
         try {
-          const profile = await fetchUserProfile(firebaseUser.uid);
+          let profile = await fetchUserProfile(firebaseUser.uid);
+          // If profile is missing or is student/visitor, check if an administrative role was granted
+          if (!profile || profile.role === "student" || profile.role === "visitor") {
+            profile = await ensureUserProfile(firebaseUser);
+          }
           if (profile) {
             setCurrentUser(profile);
             if (profile.role === "student") setActiveTab("Home");
@@ -231,12 +235,6 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
               if (activeMembership?.universityId) setSelectedUniversityIdState(activeMembership.universityId);
             }
             if (profile.canteenId) setSelectedCanteenIdState(profile.canteenId);
-          } else {
-            const newProfile = await ensureUserProfile(firebaseUser);
-            setCurrentUser(newProfile);
-            if (newProfile.role === "student") setActiveTab("Home");
-            else if (newProfile.role === "visitor") setActiveTab("Menu");
-            else setActiveTab("Overview");
           }
           // Non-blocking legacy data migration only if owner admin (only owners have permission to scan /users)
           if (profile?.role === "owner") {
