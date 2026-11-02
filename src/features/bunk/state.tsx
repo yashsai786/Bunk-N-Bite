@@ -208,8 +208,10 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
             setCurrentUser(newProfile);
             setRoleState(newProfile.role);
           }
-          // Non-blocking legacy data migration for existing users
-          migrateLegacyUserData(firebaseUser.uid).catch(() => {});
+          // Non-blocking legacy data migration only if owner admin (only owners have permission to scan /users)
+          if (profile?.role === "owner") {
+            migrateLegacyUserData(firebaseUser.uid).catch(() => {});
+          }
         } catch (err) {
           console.error("Auth state synchronization error:", err);
         }
@@ -223,9 +225,13 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Realtime University Members Listener for selectedUniversityId
+  // Realtime University Members Listener for selectedUniversityId (only needed for university admin / owner)
   useEffect(() => {
-    if (!selectedUniversityId) {
+    if (
+      !selectedUniversityId ||
+      !currentUser ||
+      (currentUser.role !== "university" && currentUser.role !== "owner")
+    ) {
       setUniversityMembers([]);
       return;
     }
@@ -239,7 +245,7 @@ export function BunkProvider({ children }: { children: React.ReactNode }) {
       }
     );
     return () => unsub();
-  }, [selectedUniversityId]);
+  }, [selectedUniversityId, currentUser]);
 
   // Database Listeners
   useEffect(() => {
